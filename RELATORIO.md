@@ -1,6 +1,6 @@
 # 📊 Relatório de Testes de Carga — Adopets
 
-Medição de **latência**, **vazão** e **concorrência** dos dois serviços do Adopets que acessam o banco de dados: **Login** (leitura) e **Cadastro** (escrita). Ferramenta: [k6](https://k6.io/). Data da medição: **09/11/2026**.
+Medição de **latência**, **vazão** e **concorrência** dos dois serviços do Adopets que acessam o banco de dados: **Login** (leitura) e **Cadastro** (escrita). Ferramenta: [k6](https://k6.io/). Foram feitas **duas medições com o mesmo cenário de carga**: a **Medição 1** (09/11/2026, sistema original) e a **Medição 2** (15/11/2026, depois de otimizar os gargalos levantados na Medição 1).
 
 > 🔙 Voltar para o [README](README.md)
 
@@ -20,33 +20,34 @@ Medição de **latência**, **vazão** e **concorrência** dos dois serviços do
 
 ## 1. Resumo executivo
 
-Cada serviço recebeu uma rampa de **1 → 10 → 50 → 100 usuários virtuais (VUs)**, sem tempo de espera entre requisições, durante 6 min 30 s (390 s).
+Nas duas medições, cada serviço recebeu uma rampa de **1 → 10 → 50 → 100 usuários virtuais (VUs)**, sem tempo de espera entre requisições, durante 6 min 30 s (390 s). Entre uma medição e a outra foram otimizados o servidor (`server.js`) e o MySQL; a lista completa está em [3.8](#38-melhoriasotimizações-arquivos-modificados) (Login) e [4.8](#48-melhoriasotimizações-arquivos-modificados) (Cadastro). A variação é `(Medição 2 − Medição 1) ÷ Medição 1`.
 
-| Indicador (teste inteiro) | Login | Cadastro |
-|---|---:|---:|
-| Requisições | 939.635 | 308.809 |
-| Vazão média | 2.409 req/s | 792 req/s |
-| Pico de vazão (janela de 10 s) | 4.117 req/s (50 VUs) | 1.570 req/s (100 VUs) |
-| Latência média | 15,29 ms | 46,69 ms |
-| Latência mediana | 11,06 ms | 43,70 ms |
-| Latência p95 | 56,54 ms | 96,61 ms |
-| Latência máxima | 345,18 ms | 1.149,86 ms |
-| Erros (`http_req_failed`) | 0 % | 0 % |
-| Checks (200 / 201) | 100 % | 100 % |
-| Limite do SLA de exemplo (`p95 < 1000 ms` e `erros < 1 %`) | ✅ atendido | ✅ atendido |
+| Indicador (teste inteiro) | Login M1 | Login M2 | Variação | Cadastro M1 | Cadastro M2 | Variação |
+|---|---:|---:|---:|---:|---:|---:|
+| Requisições | 939.635 | 669.424 | −28,8 % | 308.809 | 367.451 | +19,0 % |
+| Vazão média | 2.409 req/s | 1.716 req/s | −28,8 % | 792 req/s | 942 req/s | +19,0 % |
+| Pico de vazão (janela de 10 s) | 4.117 req/s | 2.108 req/s | −48,8 % | 1.570 req/s | 2.402 req/s | +53,0 % |
+| Latência média | 15,29 ms | 21,54 ms | +40,9 % | 46,69 ms | 39,32 ms | −15,8 % |
+| Latência mediana | 11,06 ms | 22,04 ms | +99,2 % | 43,70 ms | 35,73 ms | −18,2 % |
+| Latência p95 | 56,54 ms | 60,18 ms | +6,4 % | 96,61 ms | 100,48 ms | +4,0 % |
+| Latência máxima | 345,18 ms | 232,68 ms | −32,6 % | 1.149,86 ms | 533,83 ms | −53,6 % |
+| Erros (`http_req_failed`) | 0 % | 0 % | — | 0 % | 0 % | — |
+| Checks (200 / 201) | 100 % | 100 % | — | 100 % | 100 % | — |
+| Limite do SLA de exemplo (`p95 < 1000 ms` e `erros < 1 %`) | ✅ | ✅ | — | ✅ | ✅ | — |
 
-> Observação: a vazão acima é a informada pelo k6 (total ÷ 390 s). Os gráficos e as tabelas por janela usam a duração medida pelo `analisar.js` (391 s), por isso o gráfico de barras mostra 2.403 e 790 req/s. A diferença é só de arredondamento do tempo.
+> Observação: a vazão acima é a informada pelo k6 (total ÷ 390 s). Os gráficos e as tabelas por janela usam a duração medida pelo `analisar.js` (391 s), por isso os gráficos de barras mostram, por exemplo, 2.403 e 790 req/s na Medição 1 e 940 req/s no Cadastro da Medição 2. A diferença é só de arredondamento do tempo. Nos dois casos, `M1` = Medição 1 e `M2` = Medição 2. O Login da Medição 2 é a execução de 14:54 e o Cadastro da Medição 2, a de 20:35 (ver [seção 2.1](#21-descrição-das-configurações-máquinascontainers)).
 
 **Principais conclusões**
 
-1. **Os dois serviços atendem o SLA de exemplo com folga** até 100 usuários simultâneos: 0 erros em ≈ 1,25 milhão de requisições e p95 bem abaixo de 1 s.
-2. **O ponto de saturação da vazão é diferente.** O Login satura por volta de **50 VUs** (≈ 3.800–4.100 req/s). O Cadastro satura antes, entre **10 e 50 VUs** (780 → 1.008 req/s), chegando a ≈ 1.270 req/s com 100 VUs.
-3. **Escrever custa mais que ler:** com 1 VU o Cadastro leva ≈ 8 ms por requisição contra ≈ 1,1 ms do Login, e a vazão máxima do Cadastro é cerca de 3× menor.
-4. **Depois de saturar, a latência cresce na mesma proporção dos VUs**, sem gerar erros (efeito de fila; ver [Lei de Little](#53-verificação-de-consistência-lei-de-little)).
-5. **Dois comportamentos instáveis merecem investigação:** a queda temporária de vazão do Login no patamar de 100 VUs e as paradas curtas (≈ 3–4 s) do Cadastro. Ambos têm hipóteses nas seções [3.4](#34-levantamento-de-hipóteses-dos-gargalos-login) (Login) e [4.4](#44-levantamento-de-hipóteses-dos-gargalos-cadastro) (Cadastro), resumidas na [seção 6](#6-levantamento-de-hipóteses-dos-gargalos).
-6. ⚠️ **O Login atual compara a senha em texto puro** (sem hash). Os números do Login valem para essa implementação e tendem a ser otimistas em relação a uma versão segura (hipótese L4).
+1. **Os dois serviços continuam atendendo o SLA de exemplo com folga** nas duas medições: 0 erros em ≈ 1,25 milhão de requisições (Medição 1) e em ≈ 1,04 milhão (Medição 2), com p95 bem abaixo de 1 s.
+2. **O Cadastro melhorou na vazão e na latência média, mas não no p95 nem com 100 VUs.** Vazão média **+19,0 %**, latência média **−15,8 %** e latência máxima **−53,6 %**; o p95 ficou praticamente igual (**+4,0 %**). O ganho está de 1 a 50 VUs (10 VUs: vazão **+39,1 %**, latência média **−27,5 %**; 50 VUs: p95 **−35,3 %**) e **se inverte com 100 VUs**: vazão **−8,2 %** e p95 **+18,1 %** (111,34 → 131,54 ms). Com uma execução só não dá para saber se isso é efeito das mudanças ou variação: dentro do patamar de 100 VUs a vazão oscilou de 724 a 1.695 req/s em janelas de 10 s.
+3. **O Login não melhorou na vazão.** A média caiu **28,8 %** e a latência média subiu **40,9 %**. Com 1 VU ele ficou mais rápido (1,11 → 0,84 ms), mas a vazão deixou de crescer com os VUs (≈ 1.800–2.100 req/s desde 10 VUs) e não repetiu o patamar de ≈ 3.800–4.100 req/s que a Medição 1 teve com 50 VUs. Por outro lado, a queda de vazão com 100 VUs da Medição 1 não se repetiu. Como as mudanças foram aplicadas juntas e as duas medições foram feitas em horários diferentes, **os dados não separam o efeito das otimizações do efeito do ambiente** (hipóteses L5 e L6 em [3.9](#39-medição-2-potenciais-gargalos-que-restam)).
+4. **As paradas de 3–4 s do Cadastro não apareceram nesta execução, mas a causa não está confirmada.** A latência máxima caiu de 1,15 s para 0,53 s e a menor vazão em uma janela de 1 s (com 10 VUs ou mais) foi de 337 req/s, contra 25 req/s na Medição 1. Porém uma execução anterior do Cadastro na Medição 2 (15:02, substituída por esta) teve duas paradas de 3–4 s, então **não dá para afirmar que o redo log de 2 GB as eliminou** (hipótese C3, em [4.9](#49-medição-2-potenciais-gargalos-que-restam)).
+5. **O Cadastro teve uma janela de ≈ 14 s com o dobro da vazão do resto do teste.** Entre t ≈ 189 s e t ≈ 202 s (23 a 40 VUs) a vazão ficou em ≈ 2.050–2.560 req/s, contra ≈ 1.100–1.300 req/s nos patamares de 10 e 50 VUs, com o mesmo pool de 10 conexões. Isso mostra que Node e pool deram conta de mais do que a vazão sustentada, e que o teto de ≈ 1.200 req/s vem de algo que variou no tempo (hipóteses C1 e C5 em [4.9](#49-medição-2-potenciais-gargalos-que-restam)).
+6. **O limite do sistema continua sem ser encontrado:** nenhum erro até 100 VUs sem tempo de espera.
+7. ⚠️ **O Login continua comparando a senha em texto puro** (sem hash), de propósito: aplicar `bcrypt` mudaria o custo de cada login e invalidaria a comparação antes × depois. Trate isso como correção de segurança à parte (hipótese L4).
 
-![Comparação dos indicadores globais](testes-de-carga/graficos/2026-11-09/comparacao_resumo.png)
+![Indicadores globais: Medição 1 x Medição 2](testes-de-carga/graficos/comparativo_2026-11-09_vs_2026-11-15/comparativo_resumo.png)
 
 ---
 
@@ -54,21 +55,32 @@ Cada serviço recebeu uma rampa de **1 → 10 → 50 → 100 usuários virtuais 
 
 ### 2.1 Descrição das configurações (máquinas/containers)
 
-Não foram usados containers: servidor, banco e gerador de carga rodaram diretamente no mesmo PC (detalhes originais em [`ambiente.md`](testes-de-carga/resultados/ambiente.md)).
+Não foram usados containers: servidor, banco e gerador de carga rodaram diretamente no mesmo PC nas duas medições (detalhes em [`ambiente.md`](testes-de-carga/resultados/ambiente.md)). A tabela mostra o que mudou da Medição 1 para a Medição 2.
 
-| Item | Valor |
-|---|---|
-| Máquina | PC, CPU Intel i5-13400, 32 GB de RAM, Windows |
-| Servidor | Node.js v24.22.0 + Express (porta 3000) |
-| Banco de dados | MySQL 8.4.7, local (banco `adopetz`) |
-| Pool de conexões do servidor | 10 (`connectionLimit: 10`, ver [server.js](server.js#L13-L22)) |
-| Usuários no banco antes do teste | 3 |
-| Gerador de carga | k6 v2.3.0 (windows/amd64), **na mesma máquina do servidor** |
-| Rede | Ethernet (as requisições foram para `localhost`) |
+| Item | Medição 1 — 09/11/2026 | Medição 2 — 15/11/2026 |
+|---|---|---|
+| Máquina | PC, CPU Intel i5-13400, 32 GB de RAM, Windows | igual |
+| Servidor | Node.js v24.22.0 + Express (porta 3000), 1 processo | igual (`CLUSTER_WORKERS=1`), com o `server.js` otimizado |
+| Banco de dados | MySQL 8.4.7, local (banco `adopetz`) | igual |
+| Pool de conexões do servidor | 10 (fixo) | 10 (`DB_POOL_SIZE=10`, agora configurável) |
+| Pré-aquecimento do pool | não existia (conexões abertas sob demanda) | ligado (`DB_PREWARM=1`) |
+| Consultas do login e do cadastro | `pool.query` | prepared statements, `pool.execute` (`DB_USE_EXECUTE=1`) |
+| `innodb_redo_log_capacity` | 100 MB (padrão do MySQL 8.4) ¹ | **2 GB** (`SET PERSIST`) |
+| `innodb_buffer_pool_size` | 128 MB (padrão do MySQL 8.4) ¹ | **1 GB** (`SET PERSIST`; redimensionamento concluído em 15/11/2026 às 14:21) |
+| `innodb_flush_log_at_trx_commit` | 1 (padrão) | 1 (não alterado) |
+| `max_connections` | 151 | 151 |
+| Usuários no banco antes do teste | 3 | não registrado (ver [seção 7](#7-limitações-da-medição)) |
+| Horário dos testes (fuso −03:00) | Login 02:45, Cadastro 02:58 | Login 14:54, Cadastro 20:35 ² |
+| Gerador de carga | k6 v2.3.0 (windows/amd64), **na mesma máquina do servidor** | igual |
+| Rede | Ethernet (as requisições foram para `localhost`) | igual |
+
+¹ Os valores da Medição 1 são os padrões documentados do MySQL 8.4; a consulta `SHOW VARIABLES` feita antes da alteração não está nos arquivos do projeto. Se o seu valor anterior era outro, corrija esta tabela e o `ambiente.md`.
+
+² O Cadastro da Medição 2 foi executado de novo em 15/11/2026 às 20:35, e essa é a execução usada em todo o relatório. A configuração dessa execução foi **assumida igual** à da coluna Medição 2 (ver as pendências em [`ambiente.md`](testes-de-carga/resultados/ambiente.md)). Se algo mudou (pool, variáveis `DB_*` ou MySQL), corrija esta tabela e a [seção 4.3](#43-descrição-das-configurações).
 
 ### 2.2 Perfil de carga (igual nos dois serviços)
 
-Definido em [`login.js`](testes-de-carga/login.js) e [`cadastro.js`](testes-de-carga/cadastro.js) (variável `STAGES`, padrão `1,10,50,100`). Cada degrau sobe em 30 s e se mantém por 1 min; no fim, desce a 0 em 30 s.
+Definido em [`login.js`](testes-de-carga/login.js) e [`cadastro.js`](testes-de-carga/cadastro.js) (variável `STAGES`, padrão `1,10,50,100`). **Os scripts k6 não foram alterados entre as medições**: a rampa e os limites são os mesmos. Cada degrau sobe em 30 s e se mantém por 1 min; no fim, desce a 0 em 30 s.
 
 | Tempo (s) | Fase | VUs |
 |---|---|---:|
@@ -82,9 +94,9 @@ Definido em [`login.js`](testes-de-carga/login.js) e [`cadastro.js`](testes-de-c
 | 300–360 | patamar | 100 |
 | 360–390 | descida | 100 → 0 |
 
-**Cenário de concorrência submetido ao longo do tempo** (o mesmo nos dois testes; sobre cada patamar estão os resultados medidos):
+**Cenário de concorrência submetido ao longo do tempo** (o mesmo nos dois serviços e nas duas medições). Sobre cada patamar estão os resultados medidos, no formato *Medição 1 → Medição 2*:
 
-![Cenário de concorrência submetido ao longo do tempo](testes-de-carga/graficos/2026-11-09/concorrencia_cenario.png)
+![Cenário de concorrência submetido ao longo do tempo, com os resultados de cada patamar nas duas medições](testes-de-carga/graficos/comparativo_2026-11-09_vs_2026-11-15/comparativo_concorrencia_cenario.png)
 
 - **Sem tempo de espera** (`THINK_TIME=0`): cada VU dispara a próxima requisição assim que recebe a resposta. Isso mede a capacidade máxima do serviço, não o uso de pessoas reais.
 - **Limites (thresholds) usados como SLA de exemplo:** `http_req_failed < 1 %` e `http_req_duration p(95) < 1000 ms`.
@@ -97,7 +109,9 @@ Definido em [`login.js`](testes-de-carga/login.js) e [`cadastro.js`](testes-de-c
 | **Vazão** | requisições por segundo, calculada em janelas de **1 s, 5 s e 10 s** e também por patamar | [`analisar.js`](testes-de-carga/analisar.js) |
 | **Concorrência** | número de VUs simultâneos (`vus`), que equivale ao número de requisições em andamento, pois não há tempo de espera | k6 |
 
-Fluxo de dados: `k6 run` gera o JSON bruto (vários GB, não versionado) → `analisar.js` reduz a poucos KB (`*-agregado.json`) → [`gerar_graficos.py`](testes-de-carga/gerar_graficos.py) produz os gráficos desta página.
+Fluxo de dados: `k6 run` gera o JSON bruto (vários GB, não versionado) → `analisar.js` reduz a poucos KB (`*-agregado.json`) → [`gerar_graficos.py`](testes-de-carga/gerar_graficos.py) produz os gráficos desta página. Com duas datas, o script gera também os **gráficos comparativos** (ver [seção 8](#8-como-reproduzir)).
+
+**Como ler os gráficos comparativos.** Em todos eles a **Medição 1 é cinza** e a **Medição 2 tem a cor do serviço** (azul = Login, laranja = Cadastro). Linha cheia é a média; linha tracejada é o p95. O painel superior de cada gráfico de evolução é sempre a **concorrência submetida** (VUs simultâneos), e os painéis de baixo são a **vazão** e a **latência** no mesmo eixo de tempo.
 
 ---
 
@@ -107,25 +121,34 @@ Fluxo de dados: `k6 run` gera o JSON bruto (vários GB, não versionado) → `an
 |---|---|
 | **Endpoint** | `POST /api/login` |
 | **Tipo de operação** | **Leitura** (`SELECT` na tabela `usuario` por e-mail e senha; se não achar, consulta também `administrador`). Também grava a sessão em memória. |
-| **Data da medição** | 09/11/2026 (início às 02:45:06, fuso −03:00) |
+| **Medição 1** | 09/11/2026 (início às 02:45:06, fuso −03:00), sistema original |
+| **Medição 2** | 15/11/2026 (início às 14:54:49, fuso −03:00), depois das otimizações |
 
 ### 3.1 Arquivos envolvidos
 
-- [`server.js` — rota `POST /api/login` (linhas 87–104)](server.js#L87-L104)
-- [`server.js` — pool de conexões MySQL (linhas 13–22)](server.js#L13-L22) e [sessão em memória (linhas 37–41)](server.js#L37-L41)
+Os números de linha são os da versão atual (otimizada) do `server.js`.
+
+- [`server.js` — rota `POST /api/login` (linhas 121–142)](server.js#L121-L142)
+- [`server.js` — função `consultar()` (linhas 45–53)](server.js#L45-L53), [pool de conexões MySQL (linhas 34–43)](server.js#L34-L43) e [sessão em memória (linhas 75–79)](server.js#L75-L79)
+- [`B.arquivo.env`](B.arquivo.env) — modelo das variáveis de ambiente, incluindo as da otimização
 - [`public/login.html`](public/login.html) — formulário que chama `/api/login`
 - [`mysql/Adopetz.sql` — tabela `usuario` (linhas 32–46)](mysql/Adopetz.sql#L32-L46), com índice `UNIQUE` em `email` e em `cpf`
 
 ### 3.2 Arquivos com o código-fonte da medição
 
-- [`testes-de-carga/login.js`](testes-de-carga/login.js) — script k6
+- [`testes-de-carga/login.js`](testes-de-carga/login.js) — script k6 (o mesmo nas duas medições)
 - [`testes-de-carga/analisar.js`](testes-de-carga/analisar.js) — agregação por janelas
-- [`testes-de-carga/gerar_graficos.py`](testes-de-carga/gerar_graficos.py) — gráficos
-- Resultados: [`login-resumo.json`](testes-de-carga/resultados/2026-11-09/login-resumo.json) (k6) e [`login-agregado.json`](testes-de-carga/resultados/2026-11-09/login-agregado.json) (janelas)
+- [`testes-de-carga/gerar_graficos.py`](testes-de-carga/gerar_graficos.py) — gráficos (uma medição ou comparativo)
+- Resultados da Medição 1: [`login-resumo.json`](testes-de-carga/resultados/2026-11-09/login-resumo.json) (k6) e [`login-agregado.json`](testes-de-carga/resultados/2026-11-09/login-agregado.json) (janelas)
+- Resultados da Medição 2: [`login-resumo.json`](testes-de-carga/resultados/2026-11-15/login-resumo.json) (k6) e [`login-agregado.json`](testes-de-carga/resultados/2026-11-15/login-agregado.json) (janelas)
 
-### 3.3 Resultados (SLA observado)
+### 3.3 Descrição das configurações
 
-**Por nível de concorrência** (segundos em que havia exatamente N VUs ativos):
+Máquina, versões de Node, MySQL e k6 e rede são os mesmos nas duas medições (tabela da [seção 2.1](#21-descrição-das-configurações-máquinascontainers)). O que mudou para o Login: pool de 10 conexões **pré-aquecido**, consultas por **prepared statement**, `SELECT` com só as colunas necessárias, e MySQL com **buffer pool de 1 GB** e **redo log de 2 GB**. O processo Node continua único e a senha continua em texto puro.
+
+### 3.4 Medição 1: resultados (SLA observado)
+
+**Data:** 09/11/2026. **Por nível de concorrência** (segundos em que havia exatamente N VUs ativos):
 
 | VUs | Vazão (req/s) | Latência média (ms) | p95 (ms) | Máxima (ms) | Erros |
 |---:|---:|---:|---:|---:|---:|
@@ -138,17 +161,17 @@ Fluxo de dados: `k6 run` gera o JSON bruto (vários GB, não versionado) → `an
 
 **Evolução no tempo.** O painel superior mostra a **concorrência submetida** (VUs simultâneos); o do meio, a **vazão** (janelas de 1 s e 10 s); o inferior, a **latência** (janelas de 5 s). Os três compartilham o mesmo eixo de tempo:
 
-![Login — evolução durante o teste](testes-de-carga/graficos/2026-11-09/login_evolucao.png)
+![Login, Medição 1 — evolução durante o teste](testes-de-carga/graficos/2026-11-09/login_evolucao.png)
 
 **Concorrência (limite de requisições simultâneas).** O cenário submetido foi a rampa 1 → 10 → 50 → 100 VUs (gráfico da [seção 2.2](#22-perfil-de-carga-igual-nos-dois-serviços) e painel superior acima). Como não há tempo de espera, cada VU mantém uma requisição em andamento, então **100 VUs ≈ 100 requisições simultâneas**. O máximo testado foi 100 simultâneas e **o limite de falha não foi atingido**: 0 % de erro e p95 de 88,87 ms nesse patamar. O que saturou foi a vazão, por volta de **50 VUs** (≈ 3.800–4.100 req/s).
 
 **Leitura dos resultados**
 
 - A vazão sobe junto com os VUs até **≈ 4.100 req/s com 50 VUs** (pico de 4.353 req/s em uma janela de 1 s) e não passa disso.
-- **No patamar de 100 VUs a vazão não se mantém:** nos primeiros 30 s (t = 300–330 s) ela cai para ≈ 1.410 req/s com latência média de 71 ms; nos 30 s seguintes (t = 330–360 s) volta para ≈ 3.270 req/s e 35 ms. Não houve nenhum erro. Por isso a média do patamar (2.342 req/s) esconde **dois regimes** diferentes.
+- **No patamar de 100 VUs a vazão não se mantém:** nos primeiros 30 s (t = 300–330 s) ela cai para ≈ 1.410 req/s com latência média de 71 ms; nos 30 s seguintes (t = 330–360 s) volta para ≈ 3.270 req/s e 31 ms. Não houve nenhum erro. Por isso a média do patamar (2.342 req/s) esconde **dois regimes** diferentes.
 - O maior pico de latência (345 ms) ocorreu no início do patamar de 50 VUs (t ≈ 210 s); no patamar de 100 VUs o máximo foi de 342 ms, justamente no início da queda de vazão descrita acima.
 
-### 3.4 Levantamento de hipóteses dos gargalos (Login)
+### 3.5 Medição 1: potenciais gargalos do sistema (hipóteses)
 
 Estas são **hipóteses**: as medições mostram *o que* aconteceu, mas não monitoraram CPU, memória e estado do MySQL durante o teste. Cada item traz a evidência encontrada e um experimento para confirmar ou descartar.
 
@@ -169,6 +192,79 @@ Estas são **hipóteses**: as medições mostram *o que* aconteceu, mas não mon
 - *Impacto esperado (estimativa, não medida):* com hash de senha, cada login passaria a gastar CPU na verificação e o gargalo mudaria para esse cálculo; a vazão máxima provavelmente seria ordens de grandeza menor.
 - *Como validar:* implementar a verificação com hash e repetir `login.js`.
 
+### 3.6 Medição 2: resultados (SLA observado)
+
+**Data:** 15/11/2026 (início às 14:54:49). Mesmo script e mesma rampa da Medição 1. A coluna *Var.* compara com a Medição 1 (tabela da [seção 3.4](#34-medição-1-resultados-sla-observado)).
+
+| VUs | Vazão (req/s) | Var. | Latência média (ms) | Var. | p95 (ms) | Var. | Máxima (ms) | Erros |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 1.162,6 | +38,2 % | 0,84 | −24,3 % | 1,27 | −42,3 % | 20,20 | 0 % |
+| 10 | 1.805,6 | −3,4 % | 5,43 | +3,6 % | 7,35 | −25,1 % | 43,02 | 0 % |
+| 50 | 1.873,4 | −51,1 % | 26,59 | +105,8 % | 37,15 | +90,0 % | 171,15 | 0 % |
+| 100 | 2.064,0 | −11,9 % | 48,36 | +13,6 % | 70,85 | −20,3 % | 232,68 | 0 % |
+
+> A linha de 1 VU inclui os 94 s iniciais; as demais, 60 s cada.
+
+**Evolução no tempo** (mesmos três painéis da Medição 1: concorrência, vazão e latência):
+
+![Login, Medição 2 — evolução durante o teste](testes-de-carga/graficos/2026-11-15/login_evolucao.png)
+
+**Concorrência (limite de requisições simultâneas).** Mesmo cenário da Medição 1: rampa 1 → 10 → 50 → 100 VUs, ou seja, **até ≈ 100 requisições simultâneas**. O limite de falha também **não foi atingido**: 0 % de erro e p95 de 70,85 ms nesse patamar. A vazão, porém, satura mais cedo do que na Medição 1: já em **10 VUs** (≈ 1.800 req/s), chegando a ≈ 2.060 req/s com 100 VUs.
+
+**Leitura dos resultados**
+
+- **A vazão praticamente não cresce com a concorrência:** +4 % de 10 para 50 VUs e +10 % de 50 para 100 VUs (Medição 1: +105 % e −39 %). O pico foi de 2.108 req/s (janela de 10 s, com 100 VUs) e de 2.194 req/s em uma janela de 1 s.
+- **Com 50 VUs a vazão caiu pela metade** (3.832 → 1.873 req/s) e a latência média dobrou (12,92 → 26,59 ms). É a maior piora da Medição 2.
+- **Com 1 VU o Login ficou mais rápido:** 1.163 req/s contra 841, latência média de 0,84 ms contra 1,11 ms (−24,3 %) e p95 de 1,27 ms contra 2,20 ms (−42,3 %). Nos primeiros 10 s do teste a vazão foi de 1.294 req/s contra 575 req/s.
+- **A queda de vazão a 100 VUs da Medição 1 não reapareceu:** nos primeiros 30 s do patamar a vazão foi de ≈ 2.080 req/s e nos 30 s seguintes de ≈ 2.050 req/s (Medição 1: ≈ 1.410 e ≈ 3.270). Ou seja, a Medição 2 ficou entre os dois regimes da Medição 1: acima do *lento* (≈ 1.400 req/s) e bem abaixo do *rápido* (≈ 3.300–4.000 req/s).
+- A latência é estável e sem cauda longa: média e mediana quase iguais (21,54 e 22,04 ms) e máximo de 233 ms, abaixo dos 345 ms da Medição 1. O p95 com 100 VUs melhorou (88,87 → 70,85 ms), o que reflete o regime lento da Medição 1 (p95 de ≈ 100–110 ms nos primeiros 30 s do patamar).
+- A resposta ficou menor: ≈ 773 bytes por requisição na Medição 1 contra ≈ 427 bytes na Medição 2 (−45 %), medido pelo `data_received` do k6. Isso vem da resposta com só `id`, `nome` e `email` (antes, a linha inteira do usuário, com a senha) e dos cabeçalhos `X-Powered-By` e `ETag`, que foram removidos.
+
+### 3.7 Gráficos comparativos
+
+Os três painéis têm o mesmo eixo de tempo. **Painel superior: concorrência submetida** (a mesma nas duas medições, por isso as curvas coincidem); **meio: vazão** (linha forte = janelas de 10 s, linha clara = janelas de 1 s); **inferior: latência** (média cheia e p95 tracejado, janelas de 10 s).
+
+![Login — Medição 1 x Medição 2 ao longo do tempo](testes-de-carga/graficos/comparativo_2026-11-09_vs_2026-11-15/login_comparativo_tempo.png)
+
+Por nível de concorrência (eixo X categórico: 1, 10, 50 e 100 VUs igualmente espaçados):
+
+![Login — vazão e latência por nível de concorrência, Medição 1 x Medição 2](testes-de-carga/graficos/comparativo_2026-11-09_vs_2026-11-15/login_comparativo_por_vus.png)
+
+- Até 10 VUs as duas medições são parecidas (e a Medição 2 é melhor com 1 VU). A diferença aparece a partir de 50 VUs, onde a Medição 1 subiu para ≈ 4.000 req/s e a Medição 2 ficou em ≈ 1.900 req/s.
+- No tempo, a Medição 1 alterna entre dois regimes de vazão (≈ 1.400 e ≈ 4.000 req/s) sem mudança de carga, enquanto a Medição 2 é uma linha quase reta, entre ≈ 1.550 e ≈ 2.100 req/s depois dos 100 s.
+
+### 3.8 Melhorias/otimizações (arquivos modificados)
+
+As mudanças abaixo foram aplicadas **todas juntas** antes da Medição 2, então o resultado medido não isola a contribuição de cada uma. A coluna *Hipótese* indica qual gargalo da [seção 3.5](#35-medição-1-potenciais-gargalos-do-sistema-hipóteses) a mudança tentava atacar.
+
+| Mudança | Onde | Hipótese | O que se observou |
+|---|---|---|---|
+| `SELECT *` → `SELECT id, nome, email` | [`server.js` L128 e L133](server.js#L128) | L1 | A resposta caiu de ≈ 773 para ≈ 427 bytes por requisição. Efeito na vazão não isolado. |
+| Sessão guarda só `{ id }` (antes, a linha inteira do usuário); resposta sem a senha | [`server.js` L130–L131](server.js#L130-L131) | L1 | Menos dados para o `express-session` calcular o hash da sessão; também corrige a senha voltando ao navegador. Não isolado. |
+| Sem `X-Powered-By` e sem ETag (hash SHA-1 em toda resposta) | [`server.js` L29–L32](server.js#L29-L32) | L1 | Não isolado. |
+| `express.static` antes do middleware de sessão | [`server.js` L67–L71](server.js#L67-L71) | — | Só ajuda o carregamento das páginas, não a API medida. |
+| Pré-aquecimento do pool (`DB_PREWARM`) | [`server.js` L519–L529](server.js#L519-L529) | L2 | Conexões abertas antes da rampa. Nos primeiros 10 s: 1.294 req/s contra 575 req/s. |
+| Prepared statements via `consultar()` (`DB_USE_EXECUTE`) | [`server.js` L45–L53](server.js#L45-L53) | L1 | Com 1 VU a latência média caiu 24 %. Com 50 VUs não se pode afirmar o efeito (hipótese L6). |
+| Pool configurável (`DB_POOL_SIZE`) | [`server.js` L14–L19 e L41](server.js#L14-L19) | L2 | Medido só com 10 conexões; 25, 50 e 100 não foram medidos. |
+| Cluster opcional (`CLUSTER_WORKERS`) | [`server.js` L538–L559](server.js#L538-L559) | L1 | **Não medido** (Medição 2 com 1 processo). Com mais de um worker a sessão em memória deixa de ser compartilhada; para uso real exige um store compartilhado (ex.: `express-mysql-session`). |
+| Variáveis novas no modelo de ambiente | [`B.arquivo.env`](B.arquivo.env) | — | `DB_POOL_SIZE`, `CLUSTER_WORKERS`, `DB_PREWARM` e `DB_USE_EXECUTE`. Copie-as para o seu `.env`, porque o `dotenv` só lê o `.env`. |
+| MySQL: `innodb_buffer_pool_size` = 1 GB e `innodb_redo_log_capacity` = 2 GB | fora do repositório (`SET PERSIST`) | C2, C3 | Pensado para o Cadastro; o Login só é afetado de forma indireta. |
+
+**Não foram alterados:** `login.js`, `cadastro.js` e `analisar.js` (para a comparação valer) e `mysql/Adopetz.sql` (o `UNIQUE` de `email` e `cpf` é necessário). **A senha continua em texto puro** (L4); o `bcrypt` não foi aplicado, para não invalidar o antes × depois.
+
+### 3.9 Medição 2: potenciais gargalos que restam
+
+| ID | Situação depois da Medição 2 | Evidência | Como validar |
+|---|---|---|---|
+| L1 | **Não testada** | O teto caiu para ≈ 2.000 req/s, mas o Node continuou com 1 processo; o cluster não foi medido. | Observar o processo `node` (um núcleo perto de 100 %?) e repetir com `CLUSTER_WORKERS=2` e `4` (suba o `max_connections`). |
+| L2 | **Não testada** | Pool de 10 nas duas medições. | Medir `DB_POOL_SIZE` = 5, 10, 25, 50 e 100 e desenhar a curva de vazão por tamanho de pool. |
+| L3 | **Não reapareceu** | A vazão de 100 VUs ficou estável (≈ 2.080 e ≈ 2.050 req/s nos dois blocos de 30 s). Compatível com causa ambiental, mas sem prova. | Repetir o teste ao menos 3 vezes. |
+| L4 | **Mantida de propósito** | Senha em texto puro. | Correção de segurança à parte, com nova medição. |
+| **L5** | **Nova:** condições do ambiente diferentes entre as medições | A Medição 1 rodou de madrugada (02:45) e a Medição 2 à tarde (14:54), com a máquina possivelmente com mais programas abertos (não monitorado). A própria Medição 1 mostrou que o ambiente sozinho varia a vazão por um fator de ≈ 3 sem mudança de carga (≈ 1.400 req/s nos primeiros 30 s do patamar de 100 VUs e ≈ 4.000 req/s logo depois). A Medição 2 (≈ 1.800–2.100 req/s) está dentro dessa faixa. | Repetir as duas versões do código (antiga e nova) **no mesmo horário e alternadas**, 3 vezes cada; registrar o uso de CPU por núcleo e o que mais estava aberto. |
+| **L6** | **Nova:** efeito das mudanças no caminho do login (`execute`, colunas, sessão) | Com 1 VU tudo melhorou (latência −24 %, vazão +38 %), mas com 50 VUs a vazão caiu 51 %. Não há como saber, com uma rodada só, se alguma mudança custa mais sob concorrência. | Rodar a Medição 2 com `DB_USE_EXECUTE=0` e depois `=1` (e o mesmo com `DB_PREWARM`), sem mexer em mais nada. |
+
+> A Medição 2 sozinha **não permite escolher entre L5 e L6**. As duas podem ter contribuído.
+
 ---
 
 ## 4. Serviço 2 — Cadastro
@@ -176,25 +272,34 @@ Estas são **hipóteses**: as medições mostram *o que* aconteceu, mas não mon
 | Item | Descrição |
 |---|---|
 | **Endpoint** | `POST /api/register` |
-| **Tipo de operação** | **Inserção** (um `SELECT` para verificar e-mail/CPF duplicados, seguido de um `INSERT` em `usuario`) |
-| **Data da medição** | 09/11/2026 (início às 02:58:50, fuso −03:00) |
+| **Tipo de operação** | **Inserção**. Medição 1: um `SELECT` para verificar e-mail/CPF duplicados, seguido de um `INSERT` em `usuario`. Medição 2: só o `INSERT` (a duplicidade é tratada pelo erro `ER_DUP_ENTRY`). |
+| **Medição 1** | 09/11/2026 (início às 02:58:50, fuso −03:00), sistema original |
+| **Medição 2** | 15/11/2026 (início às 20:35:32, fuso −03:00), depois das otimizações |
 
 ### 4.1 Arquivos envolvidos
 
-- [`server.js` — rota `POST /api/register` (linhas 106–122)](server.js#L106-L122)
-- [`server.js` — pool de conexões MySQL (linhas 13–22)](server.js#L13-L22)
+Os números de linha são os da versão atual (otimizada) do `server.js`.
+
+- [`server.js` — rota `POST /api/register` (linhas 144–163)](server.js#L144-L163)
+- [`server.js` — função `consultar()` (linhas 45–53)](server.js#L45-L53) e [pool de conexões MySQL (linhas 34–43)](server.js#L34-L43)
+- [`B.arquivo.env`](B.arquivo.env) — modelo das variáveis de ambiente, incluindo as da otimização
 - [`public/register.html`](public/register.html) — formulário que chama `/api/register`
 - [`mysql/Adopetz.sql` — tabela `usuario` (linhas 32–46)](mysql/Adopetz.sql#L32-L46): chave primária mais dois índices `UNIQUE` (`email` e `cpf`)
 
 ### 4.2 Arquivos com o código-fonte da medição
 
-- [`testes-de-carga/cadastro.js`](testes-de-carga/cadastro.js) — script k6. Gera e-mail e CPF **únicos** a cada iteração (o servidor responde `409` se qualquer um repetir; sem isso o teste mediria apenas o erro).
+- [`testes-de-carga/cadastro.js`](testes-de-carga/cadastro.js) — script k6 (o mesmo nas duas medições). Gera e-mail e CPF **únicos** a cada iteração (o servidor responde `409` se qualquer um repetir; sem isso o teste mediria apenas o erro).
 - [`testes-de-carga/analisar.js`](testes-de-carga/analisar.js) e [`testes-de-carga/gerar_graficos.py`](testes-de-carga/gerar_graficos.py)
-- Resultados: [`cadastro-resumo.json`](testes-de-carga/resultados/2026-11-09/cadastro-resumo.json) (k6) e [`cadastro-agregado.json`](testes-de-carga/resultados/2026-11-09/cadastro-agregado.json) (janelas)
+- Resultados da Medição 1: [`cadastro-resumo.json`](testes-de-carga/resultados/2026-11-09/cadastro-resumo.json) (k6) e [`cadastro-agregado.json`](testes-de-carga/resultados/2026-11-09/cadastro-agregado.json) (janelas)
+- Resultados da Medição 2: [`cadastro-resumo.json`](testes-de-carga/resultados/2026-11-15/cadastro-resumo.json) (k6) e [`cadastro-agregado.json`](testes-de-carga/resultados/2026-11-15/cadastro-agregado.json) (janelas)
 
-### 4.3 Resultados (SLA observado)
+### 4.3 Descrição das configurações
 
-**Por nível de concorrência:**
+Máquina, versões e rede são os mesmos nas duas medições (tabela da [seção 2.1](#21-descrição-das-configurações-máquinascontainers)). O que mudou para o Cadastro: **uma consulta a menos por requisição** (sem o `SELECT` de duplicidade), pool de 10 conexões pré-aquecido, prepared statements, e MySQL com **redo log de 2 GB** e **buffer pool de 1 GB**. O `innodb_flush_log_at_trx_commit` continua em 1 (cada commit grava o log em disco).
+
+### 4.4 Medição 1: resultados (SLA observado)
+
+**Data:** 09/11/2026. **Por nível de concorrência:**
 
 | VUs | Vazão (req/s) | Latência média (ms) | p95 (ms) | Máxima (ms) | Erros |
 |---:|---:|---:|---:|---:|---:|
@@ -205,7 +310,7 @@ Estas são **hipóteses**: as medições mostram *o que* aconteceu, mas não mon
 
 **Evolução no tempo.** Painel superior: concorrência submetida (VUs simultâneos); meio: vazão; inferior: latência. Mesmo eixo de tempo nos três:
 
-![Cadastro — evolução durante o teste](testes-de-carga/graficos/2026-11-09/cadastro_evolucao.png)
+![Cadastro, Medição 1 — evolução durante o teste](testes-de-carga/graficos/2026-11-09/cadastro_evolucao.png)
 
 **Concorrência (limite de requisições simultâneas).** Mesmo cenário do Login: rampa 1 → 10 → 50 → 100 VUs (gráfico da [seção 2.2](#22-perfil-de-carga-igual-nos-dois-serviços) e painel superior acima), ou seja, **até ≈ 100 requisições simultâneas**. O limite de falha também não foi atingido: 0 % de erro e p95 de 111,34 ms com 100 VUs. A vazão satura bem antes, **entre 10 e 50 VUs** (780 → 1.008 req/s), e chega a ≈ 1.270 req/s com 100 VUs.
 
@@ -218,7 +323,7 @@ Estas são **hipóteses**: as medições mostram *o que* aconteceu, mas não mon
   - t ≈ 282–285 s (71–76 VUs): vazão de 226–404 req/s e latência máxima de 839 ms.
 - O teste inseriu **≈ 308.800 usuários** na tabela `usuario` (veja como limpar na [seção 8](#8-como-reproduzir)).
 
-### 4.4 Levantamento de hipóteses dos gargalos (Cadastro)
+### 4.5 Medição 1: potenciais gargalos do sistema (hipóteses)
 
 Estas são **hipóteses**: as medições mostram *o que* aconteceu, mas não monitoraram CPU, memória e estado do MySQL durante o teste. Cada item traz a evidência encontrada e um experimento para confirmar ou descartar.
 
@@ -239,15 +344,93 @@ Estas são **hipóteses**: as medições mostram *o que* aconteceu, mas não mon
 - *Evidência:* a requisição faz duas chamadas separadas a `pool.query` (verificação de duplicidade e `INSERT`), sem transação. Com 100 VUs, 100 requisições disputam 10 conexões e cada uma entra na fila duas vezes; a latência cresce na proporção dos VUs.
 - *Como validar:* variar o `connectionLimit` (como em L2) e testar uma versão que faça só o `INSERT`, tratando o erro de duplicidade (`ER_DUP_ENTRY`) com a resposta `409`. Isso elimina uma ida ao banco por requisição e também a janela de corrida entre a verificação e a inserção.
 
+### 4.6 Medição 2: resultados (SLA observado)
+
+**Data:** 15/11/2026 (início às 20:35:32). Mesmo script e mesma rampa da Medição 1. A coluna *Var.* compara com a Medição 1 (tabela da [seção 4.4](#44-medição-1-resultados-sla-observado)).
+
+| VUs | Vazão (req/s) | Var. | Latência média (ms) | Var. | p95 (ms) | Var. | Máxima (ms) | Erros |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 158,4 | +26,3 % | 6,27 | −21,5 % | 9,50 | −15,3 % | 49,13 | 0 % |
+| 10 | 1.085,1 | +39,1 % | 9,15 | −27,5 % | 14,73 | −15,0 % | 488,37 | 0 % |
+| 50 | 1.259,2 | +25,0 % | 39,64 | −19,8 % | 52,13 | −35,3 % | 155,53 | 0 % |
+| 100 | 1.165,1 | −8,2 % | 85,72 | +9,0 % | 131,54 | +18,1 % | 523,94 | 0 % |
+
+**Evolução no tempo** (concorrência, vazão e latência no mesmo eixo de tempo):
+
+![Cadastro, Medição 2 — evolução durante o teste](testes-de-carga/graficos/2026-11-15/cadastro_evolucao.png)
+
+**Concorrência (limite de requisições simultâneas).** Mesmo cenário da Medição 1: **até ≈ 100 requisições simultâneas**. O limite de falha **não foi atingido**: 0 % de erro e p95 de 131,54 ms com 100 VUs. A vazão satura **já em 10 VUs** (1.085 req/s), chega ao máximo com 50 VUs (1.259 req/s) e **cai para 1.165 req/s com 100 VUs**.
+
+**Leitura dos resultados**
+
+- **Ganho de 1 a 50 VUs.** Com 10 VUs a vazão subiu 39,1 % e a latência média caiu 27,5 %. Com 1 VU, cada requisição ficou ≈ 1,7 ms mais rápida (7,99 → 6,27 ms), um pouco mais que o ≈ 1,1 ms de um `SELECT` do Login com 1 VU na Medição 1: além da consulta removida, entram o pré-aquecimento e os prepared statements, que não foram isolados.
+- **Com 100 VUs o resultado piorou:** vazão −8,2 %, latência média +9,0 % e p95 +18,1 % (111,34 → 131,54 ms). A curva ficou plana depois de 10 VUs: **+16 % de 10 para 50 VUs e −7,5 % de 50 para 100** (Medição 1: +29 % e +26 %).
+- **Dentro do patamar de 100 VUs a vazão não caiu com o tempo, ao contrário da Medição 1.** Média de ≈ 963 req/s nos primeiros 30 s (inclui a janela de 10 s mais lenta do teste, 724 req/s em t = 300–310 s, com p95 de até ≈ 410 ms em janelas de 5 s) e ≈ 1.367 req/s nos 30 s seguintes (+42 %). Na Medição 1 foi de ≈ 1.436 para ≈ 1.101 req/s (−23 %). A latência média foi de 104 ms para 73 ms (Medição 1: 69 ms para 91 ms).
+- **Sem paradas longas, mas com quedas curtas.** A maior latência máxima foi de **534 ms** (Medição 1: 1.150 ms) e a menor vazão em uma janela de 1 s (com 10 VUs ou mais) foi de 337 req/s em t = 175 s (Medição 1: 25 req/s em t = 213 s). Foram 8 janelas de 1 s abaixo de 500 req/s (t ≈ 175–179 s, 274–277 s e 303–307 s), todas com latência máxima abaixo de 0,54 s.
+- **Uma janela de ≈ 14 s com o dobro da vazão do resto do teste.** De t ≈ 189 s a t ≈ 202 s (23 a 40 VUs, durante a subida para 50) a vazão ficou entre ≈ 2.050 e ≈ 2.560 req/s (média de 10 s: 2.402 req/s), com latência média de 9–17 ms, contra ≈ 1.100–1.300 req/s nos patamares de 10 e 50 VUs. O pool (10 conexões) e o Node eram os mesmos, então eles aguentaram esse ritmo; o teto no resto do teste vem de algo que variou no tempo (ver C1 e C5 em [4.9](#49-medição-2-potenciais-gargalos-que-restam)).
+- O teste inseriu **≈ 367.450 usuários** (≈ 19 % a mais que na Medição 1), por causa da maior vazão.
+
+### 4.7 Gráficos comparativos
+
+Os três painéis têm o mesmo eixo de tempo. **Painel superior: concorrência submetida** (a mesma nas duas medições); **meio: vazão** (linha forte = janelas de 10 s, linha clara = janelas de 1 s, onde as quedas curtas aparecem como mergulhos); **inferior: latência** (média cheia e p95 tracejado, janelas de 10 s), com a latência máxima da parada da Medição 1 anotada.
+
+![Cadastro — Medição 1 x Medição 2 ao longo do tempo](testes-de-carga/graficos/comparativo_2026-11-09_vs_2026-11-15/cadastro_comparativo_tempo.png)
+
+Por nível de concorrência (eixo X categórico: 1, 10, 50 e 100 VUs igualmente espaçados):
+
+![Cadastro — vazão e latência por nível de concorrência, Medição 1 x Medição 2](testes-de-carga/graficos/comparativo_2026-11-09_vs_2026-11-15/cadastro_comparativo_por_vus.png)
+
+- A Medição 2 é melhor em vazão, latência média e p95 com **1, 10 e 50 VUs**. Com **100 VUs** ela é pior: vazão −8,2 %, latência média +9,0 % e p95 +18,1 %.
+- A latência máxima caiu de 1.150 ms para 534 ms: as paradas de ≈ 1 s da Medição 1 não se repetiram. O pico de vazão de ≈ 2.400 req/s (t ≈ 189–202 s) é o ponto mais alto do gráfico e não tem equivalente na Medição 1.
+
+### 4.8 Melhorias/otimizações (arquivos modificados)
+
+As mudanças abaixo foram aplicadas **todas juntas** antes da Medição 2, então o resultado medido não isola a contribuição de cada uma. A coluna *Hipótese* indica qual gargalo da [seção 4.5](#45-medição-1-potenciais-gargalos-do-sistema-hipóteses) a mudança tentava atacar.
+
+| Mudança | Onde | Hipótese | O que se observou |
+|---|---|---|---|
+| **Removido o `SELECT` de duplicidade:** fica só o `INSERT`, e `ER_DUP_ENTRY` vira o mesmo `409` com a mesma mensagem | [`server.js` L144–L163](server.js#L144-L163) | C4 | Duas idas ao banco viram uma e some a janela de corrida entre `SELECT` e `INSERT`. Com 1 VU, a requisição ficou 1,72 ms mais rápida (todas as mudanças juntas); com 10 VUs: vazão +39,1 %. Para o front-end nada muda. |
+| Pré-aquecimento do pool (`DB_PREWARM`) | [`server.js` L519–L529](server.js#L519-L529) | C4 | Não isolado. |
+| Prepared statements via `consultar()` (`DB_USE_EXECUTE`) | [`server.js` L45–L53](server.js#L45-L53) | C4 | Não isolado. |
+| Pool configurável (`DB_POOL_SIZE`) | [`server.js` L14–L19 e L41](server.js#L14-L19) | C4 | Medido só com 10 conexões. |
+| Sem `X-Powered-By` e sem ETag | [`server.js` L29–L32](server.js#L29-L32) | — | Não isolado. |
+| Cluster opcional (`CLUSTER_WORKERS`) | [`server.js` L538–L559](server.js#L538-L559) | — | **Não medido** (Medição 2 com 1 processo). |
+| Variáveis novas no modelo de ambiente | [`B.arquivo.env`](B.arquivo.env) | — | `DB_POOL_SIZE`, `CLUSTER_WORKERS`, `DB_PREWARM` e `DB_USE_EXECUTE`. |
+| MySQL: `innodb_redo_log_capacity` = 2 GB (antes 100 MB) | fora do repositório (`SET PERSIST`) | C3 | Nesta execução não houve parada acima de 534 ms, mas uma execução anterior teve paradas de 3–4 s: **não dá para atribuir ao redo log** (ver [4.9](#49-medição-2-potenciais-gargalos-que-restam)). |
+| MySQL: `innodb_buffer_pool_size` = 1 GB (antes 128 MB) | fora do repositório (`SET PERSIST`) | C2 | Dentro do patamar de 100 VUs a vazão não caiu com o tempo (≈ 963 → ≈ 1.367 req/s; Medição 1: −23 %), mas a vazão média com 100 VUs ficou 8,2 % abaixo da Medição 1. Não isolado. |
+
+**Não foram alterados:** `cadastro.js` e `analisar.js` (para a comparação valer) e `mysql/Adopetz.sql` (o `UNIQUE` de `email` e `cpf` é o que permite tratar a duplicidade pelo erro do `INSERT`). O `innodb_flush_log_at_trx_commit = 2` **não foi aplicado**: ele trocaria durabilidade por velocidade (perde até ≈ 1 s de dados se o sistema operacional cair) e só deve ser usado como medição separada, registrando essa troca.
+
+### 4.9 Medição 2: potenciais gargalos que restam
+
+| ID | Situação depois da Medição 2 | Evidência | Como validar |
+|---|---|---|---|
+| C1 | **Continua sendo a principal hipótese do limite** | A vazão sustentada fica em ≈ 1.100–1.300 req/s de 10 a 100 VUs (1.085, 1.259 e 1.165 req/s), exceto por uma janela de ≈ 14 s a ≈ 2.400 req/s (C5). O `innodb_flush_log_at_trx_commit` não foi alterado. | Medição *separada* e só de diagnóstico com valor 2; acompanhar `Innodb_os_log_fsyncs` antes e depois. |
+| C2 | **Atenuada na queda dentro do patamar; sem ganho com 100 VUs** | No patamar de 100 VUs a vazão não caiu com o tempo (≈ 963 → ≈ 1.367 req/s; Medição 1: ≈ 1.436 → ≈ 1.101 req/s, −23 %), mesmo com a tabela chegando a pelo menos 367.450 linhas. Mas a vazão média com 100 VUs ficou 8,2 % abaixo da Medição 1. | Comparar `Innodb_buffer_pool_reads` com `Innodb_buffer_pool_read_requests` antes e depois do teste; repetir com a tabela vazia. |
+| C3 | **Não reapareceu nesta execução; causa não confirmada** | Latência máxima de 534 ms e menor vazão de 337 req/s em uma janela de 1 s (Medição 1: 1.150 ms e 25 req/s). Uma execução anterior do Cadastro na Medição 2 (15:02, substituída) teve duas paradas de 3–4 s (≈ 10 req/s, latência máxima de 3,1 s e 4,7 s), então o resultado varia entre execuções e não dá para atribuir o fim das paradas ao redo log de 2 GB. | Repetir o teste várias vezes com a mesma configuração e contar as paradas acima de 1 s; acompanhar `Innodb_log_waits`, `Innodb_buffer_pool_pages_flushed` e `Innodb_buffer_pool_wait_free`; ativar o *slow query log*; rodar o Node com `--trace-gc`. |
+| C4 | **Atendida em parte; o pool provavelmente não é o limite** | Uma ida ao banco foi removida (+39,1 % de vazão com 10 VUs). Com o mesmo pool de 10 conexões a vazão chegou a ≈ 2.400 req/s por ≈ 14 s, então o pool deu conta de mais do que a vazão sustentada. | Medir `DB_POOL_SIZE` = 5, 10, 25, 50 e 100 (STAGES=100 basta para achar a vazão máxima de cada tamanho). |
+| C5 | **Nova (surgiu na Medição 2)** | Janela de ≈ 14 s (t ≈ 189–202 s, 23 a 40 VUs) com ≈ 2.050–2.560 req/s e latência média de 9–17 ms, o dobro do resto do teste. Não há equivalente na Medição 1. | Repetir e ver se reaparece no mesmo instante; acompanhar `Innodb_os_log_fsyncs`, uso do disco e outros processos do Windows durante o teste. Hipóteses, não testadas: gravação em disco mais rápida nesse intervalo (cache de escrita do SO ou do SSD) ou menos competição por CPU e disco com outros processos. |
+
 ---
 
 ## 5. Comparação entre os serviços
 
 ### 5.1 Por nível de concorrência
 
-![Latência e vazão por nível de concorrência](testes-de-carga/graficos/2026-11-09/comparacao_por_vus.png)
+**Medição 2** (15/11/2026). O eixo X é categórico (1, 10, 50 e 100 VUs igualmente espaçados):
 
-> O eixo X é categórico (1, 10, 50 e 100 VUs igualmente espaçados).
+![Latência e vazão por nível de concorrência, Medição 2](testes-de-carga/graficos/2026-11-15/comparacao_por_vus.png)
+
+| VUs | Vazão Login | Vazão Cadastro | Média Login | Média Cadastro | p95 Login | p95 Cadastro |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 1.162,6 | 158,4 | 0,84 ms | 6,27 ms | 1,27 ms | 9,50 ms |
+| 10 | 1.805,6 | 1.085,1 | 5,43 ms | 9,15 ms | 7,35 ms | 14,73 ms |
+| 50 | 1.873,4 | 1.259,2 | 26,59 ms | 39,64 ms | 37,15 ms | 52,13 ms |
+| 100 | 2.064,0 | 1.165,1 | 48,36 ms | 85,72 ms | 70,85 ms | 131,54 ms |
+
+**Medição 1** (09/11/2026), para comparação:
+
+![Latência e vazão por nível de concorrência, Medição 1](testes-de-carga/graficos/2026-11-09/comparacao_por_vus.png)
 
 | VUs | Vazão Login | Vazão Cadastro | Média Login | Média Cadastro | p95 Login | p95 Cadastro |
 |---:|---:|---:|---:|---:|---:|---:|
@@ -256,44 +439,61 @@ Estas são **hipóteses**: as medições mostram *o que* aconteceu, mas não mon
 | 50 | 3.832,2 | 1.007,6 | 12,92 ms | 49,40 ms | 19,55 ms | 80,60 ms |
 | 100 | 2.342,2 | 1.268,6 | 42,57 ms | 78,62 ms | 88,87 ms | 111,34 ms |
 
+A distância entre os serviços diminuiu até 50 VUs: na Medição 1 o Login tinha 2,4× (10 VUs) e 3,8× (50 VUs) a vazão do Cadastro; na Medição 2 tem 1,7× e 1,5×. Com 100 VUs ficou igual (1,8× nas duas medições).
+
 ### 5.2 Ao longo do tempo
 
-Como os dois testes usam o mesmo cenário de concorrência, as curvas podem ser sobrepostas. O painel superior é a concorrência submetida (idêntica nos dois testes); os demais, a vazão e a latência (janelas de 10 s):
+Como os dois testes usam o mesmo cenário de concorrência, as curvas podem ser sobrepostas. O painel superior é a concorrência submetida (idêntica nos dois testes); os demais, a vazão e a latência (janelas de 10 s).
 
-![Login x Cadastro no tempo](testes-de-carga/graficos/2026-11-09/comparacao_evolucao.png)
+**Medição 2:**
 
-- O Login responde mais rápido e com mais vazão em todos os degraus, mas **é o único que perde vazão ao subir de 50 para 100 VUs** (ver seção 3.3).
-- O Cadastro degrada de forma mais gradual, porém com as duas paradas curtas e a queda de vazão dentro do patamar de 100 VUs.
-- No patamar de 100 VUs os dois serviços ficam com latência média próxima (43 ms contra 79 ms), mesmo com uma diferença de vazão de quase 2×.
+![Login x Cadastro no tempo, Medição 2](testes-de-carga/graficos/2026-11-15/comparacao_evolucao.png)
+
+**Medição 1:**
+
+![Login x Cadastro no tempo, Medição 1](testes-de-carga/graficos/2026-11-09/comparacao_evolucao.png)
+
+- Na Medição 1 o Login respondia mais rápido e com mais vazão em todos os degraus e era o único a **perder vazão ao subir de 50 para 100 VUs** (ver seção 3.4). Na Medição 2 ele continua à frente, mas com uma curva quase reta a partir de 10 VUs.
+- O Cadastro degrada de forma mais gradual nas duas medições. Na Medição 1 teve duas paradas com latência máxima de 0,8–1,15 s (seção 4.4); na Medição 2 não teve paradas longas, mas teve quedas curtas e um pico de ≈ 2.400 req/s (seções 4.6 e 4.9).
+- No patamar de 100 VUs os dois serviços ficam com latência média na mesma ordem de grandeza: 43 ms contra 79 ms na Medição 1 e 48 ms contra 86 ms na Medição 2.
 
 ### 5.3 Verificação de consistência (Lei de Little)
 
-Como não há tempo de espera, a concorrência é fixa (= VUs) e deve valer **latência ≈ VUs ÷ vazão**. Os dados confirmam:
+Como não há tempo de espera, a concorrência é fixa (= VUs) e deve valer **latência ≈ VUs ÷ vazão**. Os dados das duas medições confirmam:
 
-| VUs | Login: VUs ÷ vazão | Login: média medida | Cadastro: VUs ÷ vazão | Cadastro: média medida |
+| VUs | Login M1: VUs ÷ vazão | Login M1: média | Cadastro M1: VUs ÷ vazão | Cadastro M1: média |
 |---:|---:|---:|---:|---:|
 | 10 | 5,35 ms | 5,24 ms | 12,82 ms | 12,62 ms |
 | 50 | 13,05 ms | 12,92 ms | 49,62 ms | 49,40 ms |
 | 100 | 42,70 ms | 42,57 ms | 78,83 ms | 78,62 ms |
 
-Isso valida a medição e mostra que, depois de saturar, a latência é principalmente **tempo de espera em fila**. Não diz, porém, *onde* está a fila (Node, pool de conexões, MySQL ou o próprio k6 disputando CPU). Essa é a pergunta das hipóteses de gargalo (seções 3.4 e 4.4, resumidas na seção 6).
+| VUs | Login M2: VUs ÷ vazão | Login M2: média | Cadastro M2: VUs ÷ vazão | Cadastro M2: média |
+|---:|---:|---:|---:|---:|
+| 10 | 5,54 ms | 5,43 ms | 9,22 ms | 9,15 ms |
+| 50 | 26,69 ms | 26,59 ms | 39,71 ms | 39,64 ms |
+| 100 | 48,45 ms | 48,36 ms | 85,83 ms | 85,72 ms |
+
+Isso valida as duas medições e mostra que, depois de saturar, a latência é principalmente **tempo de espera em fila**. Não diz, porém, *onde* está a fila (Node, pool de conexões, MySQL ou o próprio k6 disputando CPU). Essa é a pergunta das hipóteses de gargalo (seções 3.5, 3.9, 4.5 e 4.9, resumidas na seção 6).
 
 ---
 
 ## 6. Levantamento de hipóteses dos gargalos
 
-As hipóteses de cada serviço estão detalhadas **dentro da seção do próprio serviço**, cada uma com a evidência encontrada nos dados e um experimento para confirmar ou descartar: [3.4 — Login](#34-levantamento-de-hipóteses-dos-gargalos-login) e [4.4 — Cadastro](#44-levantamento-de-hipóteses-dos-gargalos-cadastro). O quadro abaixo é o resumo.
+As hipóteses de cada serviço estão detalhadas **dentro da seção do próprio serviço**, cada uma com a evidência encontrada nos dados e um experimento para confirmar ou descartar: [3.5 — Login (Medição 1)](#35-medição-1-potenciais-gargalos-do-sistema-hipóteses), [3.9 — Login (Medição 2)](#39-medição-2-potenciais-gargalos-que-restam), [4.5 — Cadastro (Medição 1)](#45-medição-1-potenciais-gargalos-do-sistema-hipóteses) e [4.9 — Cadastro (Medição 2)](#49-medição-2-potenciais-gargalos-que-restam). O quadro abaixo é o resumo.
 
-| ID | Serviço | Hipótese de gargalo | Evidência principal |
-|---|---|---|---|
-| L1 | Login | CPU do Node (thread única) como teto de vazão | Vazão estaciona em ≈ 4.100 req/s a partir de 50 VUs, com consulta trivial |
-| L2 | Login | Fila no pool de 10 conexões do MySQL | Até 90 requisições esperando conexão com 100 VUs; latência cresce com os VUs |
-| L3 | Login | Instabilidade ambiental no patamar de 100 VUs | Vazão cai de ≈ 4.000 para ≈ 1.400 req/s por ≈ 35 s e volta sozinha, sem erros |
-| L4 | Login | Custo de autenticação irrealisticamente baixo (senha em texto puro) | `WHERE email = ? AND senha = ?`; o `bcrypt` não é usado |
-| C1 | Cadastro | Custo da escrita durável (commit no InnoDB) | ≈ 8 ms por requisição com 1 VU, contra ≈ 1,1 ms do Login |
-| C2 | Cadastro | Manutenção de 3 índices e crescimento da tabela | Vazão cai de ≈ 1.570 para ≈ 1.040 req/s no patamar de 100 VUs |
-| C3 | Cadastro | Paradas curtas (3–4 s) em t ≈ 212 s e t ≈ 282 s | Vazão a 25 req/s e latência máxima de 1.150 ms |
-| C4 | Cadastro | Fila no pool, com duas passagens por requisição | Duas chamadas `pool.query` por requisição; latência proporcional aos VUs |
+| ID | Serviço | Hipótese de gargalo | Evidência principal (Medição 1) | Situação depois da Medição 2 |
+|---|---|---|---|---|
+| L1 | Login | CPU do Node (thread única) como teto de vazão | Vazão estaciona em ≈ 4.100 req/s a partir de 50 VUs, com consulta trivial | Não testada (cluster não medido) |
+| L2 | Login | Fila no pool de 10 conexões do MySQL | Até 90 requisições esperando conexão com 100 VUs; latência cresce com os VUs | Não testada (pool 10 nas duas medições) |
+| L3 | Login | Instabilidade ambiental no patamar de 100 VUs | Vazão cai de ≈ 4.000 para ≈ 1.400 req/s por ≈ 35 s e volta sozinha, sem erros | Não reapareceu |
+| L4 | Login | Custo de autenticação irrealisticamente baixo (senha em texto puro) | `WHERE email = ? AND senha = ?`; o `bcrypt` não é usado | Mantida de propósito |
+| L5 | Login | Condições do ambiente diferentes entre as medições (horário, carga da máquina) | — (surgiu na Medição 2) | Aberta |
+| L6 | Login | Efeito das mudanças no caminho do login sob concorrência (`execute`, colunas, sessão) | — (surgiu na Medição 2) | Aberta |
+| C1 | Cadastro | Custo da escrita durável (commit no InnoDB) | ≈ 8 ms por requisição com 1 VU, contra ≈ 1,1 ms do Login | Continua sendo a principal hipótese |
+| C2 | Cadastro | Manutenção de 3 índices e crescimento da tabela | Vazão cai de ≈ 1.570 para ≈ 1.040 req/s no patamar de 100 VUs | Atenuada (sem queda no patamar), mas a vazão com 100 VUs ficou 8,2 % abaixo da Medição 1 |
+| C3 | Cadastro | Paradas curtas (3–4 s) | Vazão a 25 req/s e latência máxima de 1.150 ms | **Não reapareceu nesta execução** (máx. 534 ms); uma execução anterior teve paradas de 3–4 s, causa não confirmada |
+| C4 | Cadastro | Fila no pool, com duas passagens por requisição | Duas chamadas `pool.query` por requisição; latência proporcional aos VUs | Atendida em parte (1 consulta a menos); o pool não limitou uma janela de ≈ 14 s a ≈ 2.400 req/s |
+| C5 | Cadastro | Vazão variável no tempo (janela de ≈ 14 s com o dobro da vazão do resto do teste) | — (surgiu na Medição 2) | Aberta |
 
 ---
 
@@ -302,8 +502,13 @@ As hipóteses de cada serviço estão detalhadas **dentro da seção do próprio
 - **Gerador de carga e servidor na mesma máquina** (via `localhost`): k6, Node e MySQL disputam CPU e não há latência de rede real. Os números medem o conjunto, não o servidor isolado.
 - **Sem tempo de espera entre requisições:** 100 VUs aqui geram muito mais pressão do que 100 pessoas reais.
 - **O limite do sistema não foi encontrado:** não houve nenhum erro até 100 VUs. Para achar o ponto de ruptura, rodar mais degraus, por exemplo `-e STAGES=100,200,400,800`.
-- **Execução única de cada teste:** a variabilidade entre execuções é desconhecida (ver L3 e C3).
-- **Login medido com a tabela quase vazia** (3 usuários). A busca pelo índice `UNIQUE` cresce de forma logarítmica, então o efeito esperado é pequeno, mas vale repetir o Login depois do Cadastro.
+- **Uma execução de cada teste usada em cada medição:** a variabilidade entre execuções é desconhecida (ver L3, L5, C3 e C5). Para o Cadastro da Medição 2 houve uma execução anterior (15:02: 355.712 requisições, p95 de 84,33 ms e duas paradas de 3–4 s, com latência máxima de 4,7 s), substituída pela de 20:35, que é a usada neste relatório; os JSONs da anterior não estão no repositório. A diferença entre as duas (p95 de 84 para 100 ms; máxima de 4,7 s para 0,5 s) mostra o tamanho da variação entre execuções. Diferenças pequenas entre as medições não devem ser lidas como ganho ou perda.
+- **As duas medições não foram feitas nas mesmas condições:** a Medição 1 foi de madrugada (02:45–03:05), o Login da Medição 2 à tarde (14:54) e o Cadastro da Medição 2 à noite (20:35), e não foram coletadas métricas da máquina. Isso limita principalmente a leitura do Login (L5) e do pico de vazão do Cadastro (C5).
+- **As otimizações foram aplicadas todas juntas** (código e MySQL), então não há como atribuir o resultado a cada uma. Para isso, repita a Medição 2 mudando uma chave por vez (`DB_USE_EXECUTE`, `DB_PREWARM`, `DB_POOL_SIZE`, `CLUSTER_WORKERS` e as variáveis do MySQL).
+- **Cluster e tamanhos de pool diferentes de 10 estão implementados, mas não foram medidos.**
+- **Valores anteriores do MySQL:** os da Medição 1 são os padrões do MySQL 8.4 (nota da [seção 2.1](#21-descrição-das-configurações-máquinascontainers)).
+- **Estado da tabela `usuario` no Login da Medição 2 não registrado.** Na Medição 1 ela tinha 3 linhas. Se o `DELETE` da [seção 8](#8-como-reproduzir) não tiver sido executado antes, o Login rodou com a tabela cheia (≈ 308.800 linhas). O efeito esperado é pequeno (a busca pelo índice `UNIQUE` cresce de forma logarítmica), mas não foi medido.
+- **Estado da tabela `usuario` antes do Cadastro da Medição 2 não registrado.** Não se sabe se o `DELETE` da [seção 8](#8-como-reproduzir) foi executado antes das duas execuções de Cadastro; se não foi, a tabela começou a execução de 20:35 com os ≈ 355.700 usuários de teste da anterior, e não com 3 linhas como na Medição 1. A configuração dessa execução foi assumida igual à da tabela da [seção 2.1](#21-descrição-das-configurações-máquinascontainers).
 - **Caminho de erro do Login não medido:** com credenciais inválidas o servidor faz uma segunda consulta (`administrador`).
 - Não foram coletadas métricas do servidor (CPU, memória, estado do MySQL), apenas as do k6.
 
@@ -313,23 +518,54 @@ As hipóteses de cada serviço estão detalhadas **dentro da seção do próprio
 
 Pré-requisitos: [k6](https://k6.io/docs/getting-started/installation/), Node.js, MySQL em execução e o servidor rodando (`node server.js`, porta 3000). Execute os comandos a partir da pasta `testes-de-carga/` e crie antes a pasta do dia (`resultados/AAAA-MM-DD`).
 
+**Medição 2 — configuração (antes de rodar):**
+
+```sql
+-- No MySQL (como root). Anote os valores atuais antes de mudar:
+SELECT VERSION();
+SHOW VARIABLES LIKE 'innodb_redo_log_capacity';
+SHOW VARIABLES LIKE 'innodb_buffer_pool_size';
+SHOW VARIABLES LIKE 'innodb_flush_log_at_trx_commit';
+SHOW VARIABLES LIKE 'max_connections';
+
+-- SET PERSIST grava no mysqld-auto.cnf e sobrevive ao reinício do MySQL
+SET PERSIST innodb_redo_log_capacity = 2147483648;  -- 2 GB (padrão 100 MB)
+SET PERSIST innodb_buffer_pool_size  = 1073741824;  -- 1 GB (padrão 128 MB)
+
+-- Espere terminar o redimensionamento do buffer pool antes de rodar o k6
+SHOW STATUS LIKE 'Innodb_buffer_pool_resize_status';
+```
+
+No `.env` (copie de [`B.arquivo.env`](B.arquivo.env); o `dotenv` só lê o `.env`): `DB_POOL_SIZE=10`, `CLUSTER_WORKERS=1`, `DB_PREWARM=1`, `DB_USE_EXECUTE=1`. Para a **Medição 1** (comportamento original), use `DB_PREWARM=0` e `DB_USE_EXECUTE=0` e deixe o MySQL com os valores padrão (`RESET PERSIST innodb_redo_log_capacity;` e `RESET PERSIST innodb_buffer_pool_size;`).
+
+Para a medição ser comparável: mesma máquina e mesma versão do k6, reinicie o Node e o MySQL antes de cada teste e rode o `DELETE` abaixo antes do Cadastro.
+
+**Testes e gráficos:**
+
 ```bash
 cd testes-de-carga
 
 # Login (use um e-mail e senha de usuário já cadastrado)
-k6 run -e LOGIN_EMAIL=usuario@exemplo.com -e LOGIN_SENHA=sua_senha --summary-export=resultados/2026-11-09/login-resumo.json --out json=resultados/2026-11-09/login.json login.js
+k6 run -e LOGIN_EMAIL=usuario@exemplo.com -e LOGIN_SENHA=sua_senha --summary-export=resultados/2026-11-15/login-resumo.json --out json=resultados/2026-11-15/login.json login.js
 
 # Cadastro
-k6 run --summary-export=resultados/2026-11-09/cadastro-resumo.json --out json=resultados/2026-11-09/cadastro.json cadastro.js
+k6 run --summary-export=resultados/2026-11-15/cadastro-resumo.json --out json=resultados/2026-11-15/cadastro.json cadastro.js
 
 # Reduz o JSON bruto (vários GB, não versionado) a janelas de 1 s, 5 s e 10 s
-node analisar.js resultados/2026-11-09/login.json
-node analisar.js resultados/2026-11-09/cadastro.json
+node analisar.js resultados/2026-11-15/login.json
+node analisar.js resultados/2026-11-15/cadastro.json
 
-# Gera os gráficos em graficos/2026-11-09/
 pip install matplotlib
-python gerar_graficos.py 2026-11-09
+
+# Gráficos de uma medição, em graficos/2026-11-15/
+python gerar_graficos.py 2026-11-15
+
+# Gráficos de cada medição + comparativos Medição 1 x Medição 2,
+# em graficos/comparativo_2026-11-09_vs_2026-11-15/
+python gerar_graficos.py 2026-11-09 2026-11-15
 ```
+
+Para a Medição 1, troque a data nos comandos por `2026-11-09`.
 
 Opções dos scripts k6 (`-e NOME=valor`): `BASE_URL` (padrão `http://localhost:3000`), `STAGES` (padrão `1,10,50,100`) e `THINK_TIME` (padrão `0`).
 
@@ -347,3 +583,12 @@ DELETE FROM usuario WHERE email LIKE 'user\_%@teste.com';
 - [Tipos de teste do k6](https://grafana.com/docs/k6/latest/testing-guides/test-types/)
 - [Saída em JSON do k6](https://grafana.com/docs/k6/latest/results-output/real-time/json/) — base do `analisar.js`
 - Node.js (`analisar.js`), Python + matplotlib (`gerar_graficos.py`), MySQL 8.4.7
+
+**Referências consultadas para as otimizações**
+
+- [O que é o problema de N+1](https://medium.com/linkapi-solutions/o-que-%C3%A9-o-problema-de-n-1-24975a28dcb8) (a remoção do `SELECT` do Cadastro é uma *ida redundante ao banco*; não há N+1 nestas rotas)
+- [Connection Pool — DevMedia](https://www.devmedia.com.br/connection-pool/5869)
+- [Connection pooling — Prisma Data Guide](https://www.prisma.io/dataguide/database-tools/connection-pooling)
+- [The anatomy of connection pooling — Vlad Mihalcea](https://vladmihalcea.com/the-anatomy-of-connection-pooling/)
+- [Maximum database connections — Vlad Mihalcea](https://vladmihalcea.com/maximum-database-connections/)
+- [Como reduzimos em 90% o tempo de resposta de um serviço core do Will](https://medium.com/tech-will/como-reduzimos-em-90-o-tempo-de-resposta-de-um-servi%C3%A7o-core-do-will-265cef6aadc) (formato antes → depois com variação percentual)

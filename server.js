@@ -3,12 +3,33 @@ const session = require('express-session');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const cluster = require('cluster');
 const multer = require('multer');
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Otimização: ambos configuráveis pelo .env, para repetir o teste de carga com
+// valores diferentes sem mexer no código.
+//   DB_POOL_SIZE     conexões do pool MySQL por processo   (padrão: 10, como antes)
+//   CLUSTER_WORKERS  processos Node (cluster)              (padrão: 1 = sem cluster)
+const DB_POOL_SIZE = Number(process.env.DB_POOL_SIZE) || 10;
+const CLUSTER_WORKERS = Number(process.env.CLUSTER_WORKERS) || 1;
+
+// Otimizações (opcionais), também ligadas/desligadas pelo .env:
+//   DB_PREWARM      1 (padrão) abre as conexões do pool na partida, antes de aceitar
+//                   requisições. 0 = abre sob demanda durante a rampa, como antes.
+//   DB_USE_EXECUTE  1 = prepared statements (pool.execute) no login e no cadastro, que o
+//                   mysql2 guarda em cache por conexão. 0 (padrão) = pool.query, como antes.
+const DB_PREWARM = process.env.DB_PREWARM !== '0';
+const DB_USE_EXECUTE = process.env.DB_USE_EXECUTE === '1';
+
+// Otimização: remove o cabeçalho X-Powered-By e o cálculo de ETag (hash SHA-1)
+// que o Express faria em toda resposta da API.
+app.disable('x-powered-by');
+app.set('etag', false);
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
@@ -17,9 +38,19 @@ const pool = mysql.createPool({
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'adopetz',
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: DB_POOL_SIZE,
   charset: 'utf8mb4'
 });
+
+// Consulta das rotas de login e cadastro. Com DB_USE_EXECUTE=1 usa prepared statement
+// (o servidor interpreta o SQL uma vez por conexão); caso contrário, pool.query como antes.
+// O pool.query converte parâmetro undefined em NULL, mas o pool.execute lança erro.
+// Normalizamos aqui para que as duas formas se comportem igual (ex.: campo ausente no
+// corpo da requisição continua dando 401 no login, e não 500).
+function consultar(sql, params) {
+  const valores = params.map((v) => (v === undefined ? null : v));
+  return DB_USE_EXECUTE ? pool.execute(sql, valores) : pool.query(sql, valores);
+}
 
 // Pasta de uploads de imagens
 const uploadDir = path.join(__dirname, 'public', 'uploads');
@@ -32,6 +63,13 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } });
 
 app.use(cors());
+
+// Servir arquivos estáticos e mapear /images para /Images
+// Otimização: fica ANTES do session/body parsers, para que imagens, CSS e JS
+// não passem pelo middleware de sessão (leitura do cookie e do store).
+app.use('/images', express.static(path.join(__dirname, 'public', 'Images')));
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(session({
@@ -39,10 +77,6 @@ app.use(session({
   resave: false,
   saveUninitialized: false
 }));
-
-// Servir arquivos estáticos e mapear /images para /Images
-app.use('/images', express.static(path.join(__dirname, 'public', 'Images')));
-app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'home.html')));
 app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
@@ -87,14 +121,18 @@ async function obterUsuarioAtual(req) {
 app.post(['/login', '/api/login'], async (req, res) => {
   try {
     const { email, senha } = req.body;
-    const [users] = await pool.query('SELECT * FROM usuario WHERE email = ? AND senha = ?', [email, senha]);
+    // Otimização: busca só as colunas necessárias (antes: SELECT *), guarda só o id
+    // na sessão (o restante é lido de novo em obterUsuarioAtual) e não devolve mais
+    // a linha inteira, que incluía a senha, na resposta. A comparação da senha
+    // continua igual (texto puro) para manter as medições comparáveis.
+    const [users] = await consultar('SELECT id, nome, email FROM usuario WHERE email = ? AND senha = ?', [email, senha]);
     if (users.length > 0) {
-      req.session.usuario = users[0];
+      req.session.usuario = { id: users[0].id };
       return res.json({ message: 'Login realizado!', usuario: users[0] });
     }
-    const [admins] = await pool.query('SELECT * FROM administrador WHERE email = ? AND senha = ?', [email, senha]);
+    const [admins] = await consultar('SELECT id, nome, email FROM administrador WHERE email = ? AND senha = ?', [email, senha]);
     if (admins.length > 0) {
-      req.session.usuario = admins[0];
+      req.session.usuario = { id: admins[0].id };
       return res.json({ message: 'Login admin realizado!', usuario: admins[0] });
     }
     res.status(401).json({ error: 'E-mail ou senha inválidos.' });
@@ -106,17 +144,20 @@ app.post(['/login', '/api/login'], async (req, res) => {
 app.post(['/register', '/api/register'], async (req, res) => {
   try {
     const { nome, email, cpf, cep, telefone, senha, datanasc, estado, genero } = req.body;
-    const [existe] = await pool.query('SELECT id FROM usuario WHERE email = ? OR cpf = ?', [email, cpf]);
-    if (existe.length > 0) return res.status(409).json({ error: 'E-mail ou CPF já cadastrado.' });
 
+    // Otimização: antes eram duas idas ao banco (SELECT de duplicidade + INSERT).
+    // Como email e cpf já são UNIQUE, basta o INSERT: se houver duplicidade, o MySQL
+    // devolve ER_DUP_ENTRY e respondemos 409, igual a antes. Também elimina a
+    // janela de corrida entre o SELECT e o INSERT.
     const endereco = `${estado || 'RJ'} - CEP ${cep || '00000-000'}`;
-    const [result] = await pool.query(
+    const [result] = await consultar(
       `INSERT INTO usuario (nome, cpf, telefone, cep, senha, email, estado, genero, endereco, datanasc)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [nome, cpf, telefone, cep, senha, email, estado || 'RJ', genero || 'outro', endereco, datanasc || '2000-01-01']
     );
     res.status(201).json({ message: 'Usuário cadastrado!', id: result.insertId });
   } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'E-mail ou CPF já cadastrado.' });
     res.status(500).json({ error: err.message });
   }
 });
@@ -448,8 +489,8 @@ app.post('/api/ongs', async (req, res) => {
   }
 });
 
-// Inicialização automática do banco e start do servidor
-async function iniciar() {
+// Inicialização automática do banco (só na primeira execução)
+async function prepararBanco() {
   try {
     const conn = await mysql.createConnection({
       host: process.env.DB_HOST || 'localhost',
@@ -468,7 +509,53 @@ async function iniciar() {
   } catch (e) {
     console.warn('Aviso MySQL:', e.message);
   }
-  app.listen(PORT, () => console.log(`Servidor rodando em http://localhost:${PORT}`));
 }
 
-iniciar();
+// Otimização: o mysql2 não tem pool mínimo e só abre conexões quando há requisições,
+// então a rampa do teste pagava o handshake de cada conexão nova. Aqui disparamos
+// DB_POOL_SIZE consultas ao mesmo tempo; como não há conexão livre, o pool abre uma
+// para cada. Em cluster, cada worker aquece o seu próprio pool. Se o MySQL recusar
+// conexões (ex.: max_connections baixo), só avisa e segue: o pool abre sob demanda.
+async function aquecerPool() {
+  if (!DB_PREWARM) return;
+  const inicio = Date.now();
+  const resultados = await Promise.allSettled(
+    Array.from({ length: DB_POOL_SIZE }, () => pool.query('SELECT 1'))
+  );
+  const abertas = resultados.filter((r) => r.status === 'fulfilled').length;
+  console.log(`Pool aquecido: ${abertas}/${DB_POOL_SIZE} conexões em ${Date.now() - inicio} ms.`);
+  const falha = resultados.find((r) => r.status === 'rejected');
+  if (falha) console.warn('Aviso: nem todas as conexões abriram:', falha.reason && falha.reason.message);
+}
+
+async function iniciarServidor() {
+  await aquecerPool();
+  app.listen(PORT, () => console.log(
+    `Servidor rodando em http://localhost:${PORT}` + (CLUSTER_WORKERS > 1 ? ` (worker ${process.pid})` : '')
+  ));
+}
+
+async function iniciar() {
+  // Otimização (opcional): com CLUSTER_WORKERS > 1 o processo principal prepara o
+  // banco uma única vez e sobe N processos Node, que dividem a mesma porta. Assim
+  // o Node deixa de ser limitado a um único núcleo de CPU.
+  // ATENÇÃO: a sessão (express-session) fica na memória de cada processo e NÃO é
+  // compartilhada entre os workers. Para uso real, troque por um store
+  // compartilhado (ex.: express-mysql-session). Para o teste de carga de
+  // login/cadastro isso não interfere.
+  if (CLUSTER_WORKERS > 1 && cluster.isPrimary) {
+    await prepararBanco();
+    console.warn(`Cluster ativo: ${CLUSTER_WORKERS} workers (sessões em memória não são compartilhadas entre eles).`);
+    cluster.schedulingPolicy = cluster.SCHED_RR; // distribui as conexões em rodízio (no Windows o padrão não é esse)
+    for (let i = 0; i < CLUSTER_WORKERS; i++) cluster.fork();
+    cluster.on('exit', (worker, code) => {
+      console.warn(`Worker ${worker.process.pid} encerrou (código ${code}). Reiniciando em 1 s...`);
+      setTimeout(() => cluster.fork(), 1000);
+    });
+    return;
+  }
+  if (CLUSTER_WORKERS <= 1) await prepararBanco();
+  iniciarServidor();
+}
+
+iniciar();
