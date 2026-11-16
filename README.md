@@ -182,7 +182,7 @@ Execute a partir da pasta `testes-de-carga/` e crie antes a pasta do dia (por ex
 cd testes-de-carga
 
 # Login
-k6 run -e LOGIN_EMAIL=karenzinha@email.com -e LOGIN_SENHA=senha123 --summary-export=resultados/2026-11-15/login-resumo.json --out json=resultados/2026-11-15/login.json login.js
+k6 run -e LOGIN_EMAIL=karenzinha123@email.com -e LOGIN_SENHA=senha123 --summary-export=resultados/2026-11-15/login-resumo.json --out json=resultados/2026-11-15/login.json login.js
 
 # Cadastro
 k6 run --summary-export=resultados/2026-11-15/cadastro-resumo.json --out json=resultados/2026-11-15/cadastro.json cadastro.js

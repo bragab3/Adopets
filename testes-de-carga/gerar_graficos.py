@@ -439,39 +439,73 @@ def grafico_comparativo_resumo(m1, m2, saida):
     salvar(fig, saida, "comparativo_resumo.png")
 
 
+def variacao_pct(antes, depois):
+    """Variação percentual da Medição 2 em relação à Medição 1, com sinal (ex.: +38%)."""
+    v = (depois / antes - 1) * 100
+    return f"{v:+.0f}%".replace("-", "\u2212")
+
+
 def grafico_comparativo_cenario(m1, m2, saida):
-    """A rampa de concorrência submetida (idêntica nas duas medições), com o
-    resultado de cada patamar escrito como 'Medição 1 -> Medição 2'."""
-    fig, ax = plt.subplots(figsize=(12.5, 5.8))
+    """O cenário de concorrência submetido (idêntico nas duas medições) no topo e,
+    abaixo, no MESMO eixo de tempo, a Medição 1 e a Medição 2 como duas linhas:
+    vazão e latência média, uma coluna para o Login e outra para o Cadastro.
+    O rótulo sobre cada patamar é a variação da Medição 2 em relação à Medição 1
+    (média do patamar, a mesma tabela usada no RELATORIO.md)."""
+    r1, r2 = f"Medição 1 ({data_br(m1.data)})", f"Medição 2 ({data_br(m2.data)})"
+    fig = plt.figure(figsize=(13.5, 9.6))
+    grade = fig.add_gridspec(3, 2, height_ratios=[0.75, 1.5, 1.5], hspace=0.34, wspace=0.12)
+    a0 = fig.add_subplot(grade[0, :])
+    eixos = [[fig.add_subplot(grade[i, j], sharex=a0) for j in range(2)] for i in (1, 2)]
+    fig.suptitle(f"Cenário de concorrência: {r1} \u00d7 {r2}", y=0.965, fontsize=14)
+
+    # 1) Cenário: a rampa de VUs (uma só curva, porque o cenário é o mesmo nas duas medições)
     x, y = serie(m2.dados["login"], 1, "vus")
-    ax.fill_between(x, y, step="mid", color="#555", alpha=0.15)
-    ax.step(x, y, where="mid", color="#222", lw=2.2)
-    sombrear_degraus(ax)
+    a0.fill_between(x, y, step="mid", color="#555", alpha=0.15)
+    a0.step(x, y, where="mid", color="#222", lw=2.2)
+    estilo(a0, "VUs simultâneos", tempo=True)
+    a0.set_ylim(0, 125)
+    titulo_painel(a0, "Concorrência submetida ao longo do tempo (o mesmo cenário nas duas medições)")
+    sombrear_degraus(a0)
+    rotular_patamares(a0)
+    for t, rot in ((15, "subida 0 \u2192 1"), (105, "subida 1 \u2192 10"), (195, "subida 10 \u2192 50"),
+                   (285, "subida 50 \u2192 100"), (375, "descida 100 \u2192 0")):
+        a0.text(t, 118, rot, ha="center", va="center", fontsize=7.5, color="#777")
+
+    # 2) Resultados: duas linhas (Medição 1 = cinza, Medição 2 = cor do serviço)
     t1 = {n: tabela_por_vus(m1.dados[n]) for n in SERVICOS}
     t2 = {n: tabela_por_vus(m2.dados[n]) for n in SERVICOS}
-    for ini, vus in zip(INICIO_DEGRAUS, DEGRAUS):
-        linhas = [f"{vus} VU{'s' if vus > 1 else ''}"]
-        for nome in SERVICOS:
-            a, b = t1[nome][vus], t2[nome][vus]
-            linhas.append(f"{nome.capitalize()}: {br(a['req_por_s'])}→{br(b['req_por_s'])} req/s"
-                          f" | {br(a['latencia_media_ms'], 1)}→{br(b['latencia_media_ms'], 1)} ms")
-        ax.text(ini + 30 + AJUSTE_CAIXA[vus], vus + 5, "\n".join(linhas), ha="center", va="bottom", fontsize=7.8,
-                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#bbb", lw=0.8))
-    for t, rot in ((15, "subida 0 -> 1"), (105, "subida 1 -> 10"), (195, "subida 10 -> 50"),
-                   (285, "subida 50 -> 100"), (375, "descida 100 -> 0")):
-        ax.text(t, 141, rot, ha="center", va="center", fontsize=7.5, color="#777")
-    ax.set_xlim(0, 392)
-    ax.set_ylim(0, 150)
-    ax.set_xlabel("Tempo desde o início do teste (s)")
-    ax.set_ylabel("Usuários virtuais simultâneos (VUs)")
-    ax.set_title("Cenário de concorrência submetido ao longo do tempo (o mesmo nas duas medições)\n"
-                 f"Em cada patamar: Medição 1 ({data_br(m1.data)}) → Medição 2 ({data_br(m2.data)}), "
-                 "vazão e latência média",
-                 fontsize=11.5)
-    ax.grid(True, alpha=0.3)
-    ax.set_axisbelow(True)
-    ax.spines[["top", "right"]].set_visible(False)
-    fig.tight_layout()
+    paineis = (("req_por_s", "Vazão (req/s)", "Vazão"),
+               ("latencia_media_ms", "Latência média (ms)", "Latência média"))
+    for linha, (campo, ylabel, titulo) in enumerate(paineis):
+        for col, nome in enumerate(SERVICOS):
+            ax, cfg = eixos[linha][col], SERVICOS[nome]
+            d1, d2 = m1.dados[nome], m2.dados[nome]
+            xa, ya = serie(d1, 10, campo)
+            xb, yb = serie(d2, 10, campo)
+            ax.plot(xa, ya, color=COR_ANTES, lw=2, marker="s", ms=3.2, label="Medição 1")
+            ax.plot(xb, yb, color=cfg["cor"], lw=2.2, marker="o", ms=3.5, label="Medição 2")
+            estilo(ax, ylabel if col == 0 else "", tempo=True)
+            ax.set_ylim(0, max(ya + yb) * 1.28)
+            ax.set_title(f"{nome.capitalize()} - {titulo}", loc="left", fontsize=10.5, fontweight="bold")
+            sombrear_degraus(ax)
+            # legenda na linha do título (à direita), para não cobrir os rótulos dos patamares
+            ax.legend(frameon=False, loc="lower right", bbox_to_anchor=(1.0, 1.0), ncol=2,
+                      fontsize=8.5, handlelength=1.6, columnspacing=1.2, borderaxespad=0.2)
+            # variação de cada patamar, no topo da faixa correspondente
+            for ini, vus in zip(INICIO_DEGRAUS, DEGRAUS):
+                ax.text(ini + 30, 0.965, variacao_pct(t1[nome][vus][campo], t2[nome][vus][campo]),
+                        transform=ax.get_xaxis_transform(), ha="center", va="top", fontsize=9,
+                        fontweight="bold", color=COR_TEXTO,
+                        bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#ccc", lw=0.7))
+            if linha == 1:
+                ax.set_xlabel("Tempo desde o início do teste (s)")
+            else:
+                ax.tick_params(labelbottom=False)
+    a0.tick_params(labelbottom=False)
+    fig.text(0.5, 0.012,
+             "Linhas: janelas de 10 s. Rótulo sobre cada patamar: variação da Medição 2 em relação à Medição 1 "
+             "(média do patamar). Vazão: quanto maior, melhor. Latência: quanto menor, melhor.",
+             ha="center", va="bottom", fontsize=9, color="#555")
     salvar(fig, saida, "comparativo_concorrencia_cenario.png")
 
 

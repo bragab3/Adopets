@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Animais Perdidos - AdoPetz</title>
+  <link rel="shortcut icon" href="Images/Adopt 500x500.png" type="image/x-icon" />
+  <link rel="stylesheet" href="css/home.css">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #1e3a5f;
+    }
+    .banner-perdidos {
+      max-width: 1200px;
+      margin: 20px auto 0 auto;
+      padding: 18px 25px;
+      background: linear-gradient(135deg, #324a7a, #24375c);
+      border-left: 6px solid #ff4d4d;
+      border-radius: 12px;
+      color: #dbe3f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    }
+    .banner-perdidos h2 {
+      margin: 0 0 5px 0;
+      color: #ff6b6b;
+      font-size: 24px;
+    }
+    .banner-perdidos p {
+      margin: 0;
+      font-size: 15px;
+      color: #dbe3f0;
+    }
+    .btn-divulgar-perdido {
+      background: #ff4d4d;
+      color: #fff;
+      text-decoration: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      transition: background 0.3s, transform 0.2s;
+    }
+    .btn-divulgar-perdido:hover {
+      background: #d93636;
+      transform: translateY(-2px);
+    }
+    .container {
+      display: flex;
+      padding: 20px;
+      gap: 20px;
+      min-height: calc(100vh - 140px);
+    }
+    /* FILTRO LATERAL */
+    .filtro-lateral {
+      width: 280px;
+      background: #324a7a;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.3);
+      height: fit-content;
+    }
+    .filtro-lateral h3 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      color: #1e90ff;
+    }
+    .filtro-group {
+      margin-bottom: 20px;
+    }
+    .filtro-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #a9b2c3;
+    }
+    .checkbox-group label {
+      font-weight: normal;
+      color: #dbe3f0;
+      cursor: pointer;
+      user-select: none;
+    }
+    .checkbox-group input[type="checkbox"] {
+      margin-right: 8px;
+      cursor: pointer;
+    }
+    button.btn-aplicar-filtro {
+      background: #1e90ff;
+      color: white;
+      border: none;
+      padding: 12px 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      font-weight: 600;
+      transition: background 0.3s;
+    }
+    button.btn-aplicar-filtro:hover {
+      background: #156ecf;
+    }
+    button.btn-limpar {
+      background: #555a6b;
+      margin-top: 10px;
+    }
+    button.btn-limpar:hover {
+      background: #3a3f4e;
+    }
+    /* CATÁLOGO DE PERDIDOS */
+    .catalogo {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 25px;
+      justify-content: flex-start;
+      align-content: flex-start;
+    }
+    .card {
+      background-color: #324a7a;
+      border-radius: 15px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+      overflow: hidden;
+      transition: transform 0.2s;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      border-top: 4px solid #ff4d4d;
+    }
+    .card:hover {
+      transform: scale(1.03);
+    }
+    .badge-perdido {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: #ff4d4d;
+      color: #fff;
+      font-weight: 700;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      letter-spacing: 0.5px;
+    }
+    .card img {
+      width: 100%;
+      height: 250px;
+      object-fit: cover;
+      background-color: #24375c;
+    }
+    .card-content {
+      padding: 16px;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      text-align: center;
+    }
+    .card-content h3 {
+      margin: 0 0 10px 0;
+      color: #ff6b6b;
+    }
+    .card-content p {
+      margin: 4px 0;
+      font-size: 14px;
+      color: #dbe3f0;
+    }
+    .botoes-card {
+      margin-top: 15px;
+      display: flex;
+      gap: 10px;
+    }
+    .btn-detalhes {
+      flex: 1;
+      padding: 10px 12px;
+      background: #1e90ff;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      text-align: center;
+      font-size: 14px;
+      transition: background 0.3s;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-detalhes:hover {
+      background: #156ecf;
+    }
+    .btn-contato-direto {
+      background: #ff4d4d;
+    }
+    .btn-contato-direto:hover {
+      background: #d93636;
+    }
+    .botao-flutuante {
+      position: fixed;
+      bottom: 25px;
+      right: 25px;
+      width: 60px;
+      height: 60px;
+      background-color: #ff4d4d;
+      color: white;
+      border-radius: 50%;
+      font-size: 32px;
+      font-weight: bold;
+      text-align: center;
+      line-height: 60px;
+      text-decoration: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 999;
+      transition: background 0.3s ease, transform 0.2s ease;
+    }
+    .botao-flutuante:hover {
+      background-color: #d93636;
+      transform: scale(1.1);
+    }
+    @media (max-width: 600px) {
+      .container {
+        flex-direction: column;
+        padding: 15px;
+      }
+      .filtro-lateral {
+        width: 100%;
+      }
+      .catalogo {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="cabecalho">
+    <div class="container-cabecalho">
+      <div class="logo" onclick="window.location.href='homelogada.html'">
+        <img class="img-cabecalho" src="Images/Adopt 500x500.png" alt="Logo AdoPetz">
+        <h2 class="texto-logo">AdoPetz</h2>
+      </div>
+
+      <nav class="menu-nav">
+        <ul class="lista-menu-nav">
+          <li class="item-menu-nav"><a href="homelogada.html">Início</a></li>
+          <li class="item-menu-nav"><a href="catalogo.html">Adote</a></li>
+          <li class="item-menu-nav"><a href="animais_perdidos.html">Animais Perdidos</a></li>
+
+          <li class="item-menu-nav dropdown">
+            <a href="#" class="dropbtn">Recursos</a>
+            <ul class="dropdown-content">
+              <li><a href="calendario.html">Calendário</a></li>
+              <li><a href="blog.html">Blog</a></li>
+              <li><a href="denuncia.html">Denuncie</a></li>
+            </ul>
+          </li>
+
+          <li class="item-menu-nav dropdown">
+            <a href="#" class="dropbtn">Parceiro</a>
+            <ul class="dropdown-content">
+              <li><a href="itens.html">Loja</a></li>
+              <li><a href="mapa.html">Mapa</a></li>
+            </ul>
+          </li>
+
+          <li class="item-menu-nav dropdown">
+            <a href="#" class="dropbtn">Institucional</a>
+            <ul class="dropdown-content">
+              <li><a href="sobre-nos.html">Sobre Nós</a></li>
+              <li><a href="contribua.html">Contribua Conosco</a></li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="perfil-usuario" id="perfil-usuario">
+        <img class="foto-usuario" src="Images/cliente.png" alt="Foto do Usuário">
+        <span class="nome-usuario">Usuário</span>
+      </div>
+
+      <div class="mini-navbar" id="mini-navbar" style="display: none;">
+        <ul>
+          <li><a href="perfil.html">Exibir Perfil</a></li>
+          <li><a href="meus_anuncios.html">Meus Anuncios</a></li>
+          <li><a href="chats.html">Meus Chats</a></li>
+          <li><a href="home.html">Sair</a></li>
+        </ul>
+      </div>
+    </div>
+  </header>
+
+  <div class="banner-perdidos">
+    <div>
+      <h2>🚨 Mural de Animais Perdidos</h2>
+      <p>Ajude um pet desaparecido a voltar para casa! Filtre por tipo ou região e fale direto com o responsável pelo chat.</p>
+    </div>
+    <a href="upload.html?modalidade=PERDIDO" class="btn-divulgar-perdido">+ Divulgar Animal Perdido</a>
+  </div>
+
+  <a href="upload.html?modalidade=PERDIDO" class="botao-flutuante" title="Divulgar animal perdido">+</a>
+
+  <div class="container">
+    <aside class="filtro-lateral">
+      <h3>Filtrar Perdidos</h3>
+      <div class="filtro-group">
+        <label>Localidade</label>
+        <div class="checkbox-group">
+          <label><input type="checkbox" class="filtro-localidade" value="SP" /> São Paulo (SP)</label><br />
+          <label><input type="checkbox" class="filtro-localidade" value="RJ" /> Rio de Janeiro (RJ)</label><br />
+          <label><input type="checkbox" class="filtro-localidade" value="MG" /> Minas Gerais (MG)</label>
+        </div>
+      </div>
+      <div class="filtro-group">
+        <label>Tipo de Animal</label>
+        <div class="checkbox-group">
+          <label><input type="checkbox" class="filtro-tipo" value="Cachorro" /> Cachorro</label><br />
+          <label><input type="checkbox" class="filtro-tipo" value="Gato" /> Gato</label><br />
+          <label><input type="checkbox" class="filtro-tipo" value="Outros" /> Outros</label>
+        </div>
+      </div>
+      <button class="btn-aplicar-filtro" id="btnFiltrar">Aplicar Filtro</button>
+      <button class="btn-aplicar-filtro btn-limpar" id="btnLimparFiltro">Limpar Filtro</button>
+    </aside>
+
+    <main class="catalogo" id="catalogo"></main>
+  </div>
+
+  <script>
+    const catalogo = document.getElementById('catalogo');
+    let listaPerdidosBanco = [];
+    const usuarioLocal = JSON.parse(localStorage.getItem('usuarioLogado') || 'null');
+
+    async function carregarPerdidosDoBanco() {
+      try {
+        const res = await fetch('/api/animais?tipo_anuncio=PERDIDO');
+        listaPerdidosBanco = await res.json();
+        renderizarCatalogo(listaPerdidosBanco);
+      } catch (err) {
+        console.error('Erro ao carregar animais perdidos:', err);
+      }
+    }
+
+    async function abrirChatPerdido(animalId) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (usuarioLocal && usuarioLocal.id) {
+        headers['x-usuario-id'] = String(usuarioLocal.id);
+      }
+      try {
+        const res = await fetch('/api/chats', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers,
+          body: JSON.stringify({ animal_id: animalId })
+        });
+        const data = await res.json();
+        if (res.status === 401) {
+          alert('Faça login para entrar em contato com o responsável.');
+          window.location.href = 'login.html';
+          return;
+        }
+        if (!res.ok) {
+          alert(data.error || 'Não foi possível abrir o chat.');
+          return;
+        }
+        window.location.href = `chats.html?animalId=${animalId}`;
+      } catch (err) {
+        alert('Erro de conexão ao abrir o chat.');
+      }
+    }
+
+    function criarCard(animal) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      const ehMeu = usuarioLocal && Number(usuarioLocal.id) === Number(animal.usuario_id);
+
+      card.innerHTML = `
+        <span class="badge-perdido">🚨 ANIMAL PERDIDO</span>
+        <img src="${animal.imagem}" alt="Foto de ${animal.nome}">
+        <div class="card-content">
+          <h3>${animal.nome}</h3>
+          <p><strong>Tipo:</strong> ${animal.tipo}</p>
+          <p><strong>Raça:</strong> ${animal.raca}</p>
+          <p><strong>Coloração:</strong> ${animal.coloracao}</p>
+          <p><strong>Local onde foi visto:</strong> ${animal.localidade}</p>
+          <p><strong>Responsável:</strong> ${animal.responsavel_nome || 'Usuário'}</p>
+          <div class="botoes-card">
+            <a href="detalhes.html?id=${animal.id}" class="btn-detalhes">Ver detalhes</a>
+            ${!ehMeu ? `<button class="btn-detalhes btn-contato-direto" onclick="abrirChatPerdido(${animal.id})">💬 Avisar no Chat</button>` : ''}
+          </div>
+        </div>
+      `;
+
+      return card;
+    }
+
+    function pegarFiltros() {
+      const locaisSelecionados = Array.from(document.querySelectorAll('.filtro-localidade:checked')).map(cb => cb.value);
+      const tiposSelecionados = Array.from(document.querySelectorAll('.filtro-tipo:checked')).map(cb => cb.value);
+      return { locaisSelecionados, tiposSelecionados };
+    }
+
+    function renderizarCatalogo(lista) {
+      catalogo.innerHTML = '';
+      if (lista.length === 0) {
+        const { locaisSelecionados, tiposSelecionados } = pegarFiltros();
+        let filtrosMsg = [];
+        if (locaisSelecionados.length > 0) filtrosMsg.push(`Localidade: ${locaisSelecionados.join(', ')}`);
+        if (tiposSelecionados.length > 0) filtrosMsg.push(`Tipo: ${tiposSelecionados.join(', ')}`);
+
+        catalogo.innerHTML = `
+          <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px;">
+            <p style="color:#dbe3f0; font-size: 18px;">Nenhum animal perdido encontrado no momento.</p>
+            ${filtrosMsg.length > 0 ? `<p style="color:#a9b2c3;">Filtros aplicados: ${filtrosMsg.join(' | ')}</p>` : ''}
+          </div>
+        `;
+        return;
+      }
+
+      lista.forEach(animal => {
+        catalogo.appendChild(criarCard(animal));
+      });
+    }
+
+    function filtrarAnimais() {
+      const { locaisSelecionados, tiposSelecionados } = pegarFiltros();
+      const filtrados = listaPerdidosBanco.filter(animal => {
+        if (locaisSelecionados.length > 0 && !locaisSelecionados.includes(animal.localidade)) return false;
+        if (tiposSelecionados.length > 0 && !tiposSelecionados.includes(animal.tipo)) return false;
+        return true;
+      });
+      renderizarCatalogo(filtrados);
+    }
+
+    function limparFiltros() {
+      document.querySelectorAll('.filtro-localidade').forEach(cb => cb.checked = false);
+      document.querySelectorAll('.filtro-tipo').forEach(cb => cb.checked = false);
+      renderizarCatalogo(listaPerdidosBanco);
+    }
+
+    document.getElementById('btnFiltrar').addEventListener('click', filtrarAnimais);
+    document.getElementById('btnLimparFiltro').addEventListener('click', limparFiltros);
+
+    document.addEventListener("DOMContentLoaded", () => {
+      carregarPerdidosDoBanco();
+
+      const perfilUsuario = document.getElementById("perfil-usuario");
+      const miniNavbar = document.getElementById("mini-navbar");
+      perfilUsuario.addEventListener("click", (e) => {
+        e.stopPropagation();
+        miniNavbar.style.display = (miniNavbar.style.display === "block") ? "none" : "block";
+      });
+      document.addEventListener("click", (e) => {
+        if (!miniNavbar.contains(e.target) && !perfilUsuario.contains(e.target)) {
+          miniNavbar.style.display = "none";
+        }
+      });
+    });
+  </script>
+</body>
+</html>

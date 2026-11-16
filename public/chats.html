@@ -76,78 +76,190 @@
     </div>
 
     <script>
-       document.addEventListener("DOMContentLoaded", async () => {
-    const chatList = document.getElementById("chatList");
-    const chatTitle = document.getElementById("chatTitle");
-    const animalImage = document.getElementById("animalImage");
-    const messagesContainer = document.getElementById("messagesContainer");
-    const sendButton = document.getElementById("sendButton");
-    const messageInput = document.getElementById("messageInput");
+        document.addEventListener("DOMContentLoaded", async () => {
+            const chatList = document.getElementById("chatList");
+            const chatHeader = document.getElementById("chatHeader");
+            const chatTitle = document.getElementById("chatTitle");
+            const animalImage = document.getElementById("animalImage");
+            const messagesContainer = document.getElementById("messagesContainer");
+            const sendButton = document.getElementById("sendButton");
+            const messageInput = document.getElementById("messageInput");
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const animalIdParam = urlParams.get("animalId");
+            const usuarioLocal = JSON.parse(localStorage.getItem("usuarioLogado") || "null");
+            const meuNomePadrao = (usuarioLocal && usuarioLocal.nome) ? usuarioLocal.nome : "Você";
 
-    if (animalIdParam) {
-        await fetch('/api/chats', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ animal_id: animalIdParam })
+            function obterHeaders() {
+                const h = { 'Content-Type': 'application/json' };
+                if (usuarioLocal && usuarioLocal.id) {
+                    h['x-usuario-id'] = String(usuarioLocal.id);
+                }
+                return h;
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const animalIdParam = urlParams.get("animalId");
+
+            if (animalIdParam) {
+                await fetch('/api/chats', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: obterHeaders(),
+                    body: JSON.stringify({ animal_id: animalIdParam })
+                });
+            }
+
+            const res = await fetch('/api/chats', {
+                credentials: 'same-origin',
+                headers: obterHeaders()
+            });
+            if (res.status === 401) {
+                window.location.href = 'login.html';
+                return;
+            }
+            const chats = await res.json();
+            let chatAtivo = null;
+
+            // Botão de concluir adoção / marcar como encontrado
+            const btnAdocao = document.createElement("button");
+            btnAdocao.className = "finalizar-button";
+            btnAdocao.style.display = "none";
+            chatHeader.appendChild(btnAdocao);
+
+            btnAdocao.addEventListener("click", async () => {
+                if (!chatAtivo) return;
+                const ehPerdido = chatAtivo.tipo_anuncio === 'PERDIDO';
+                const nomeOutro = obterNomeOutroUsuario(chatAtivo);
+                const msgConfirm = ehPerdido
+                    ? `Confirmar que o animal perdido ${chatAtivo.nome} foi encontrado?`
+                    : `Confirmar que ${nomeOutro} adotou ${chatAtivo.nome}?`;
+
+                if (!confirm(msgConfirm)) return;
+
+                const r = await fetch('/api/adocao', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: obterHeaders(),
+                    body: JSON.stringify({ chat_id: chatAtivo.chat_id, animal_id: chatAtivo.animal_id })
+                });
+                const d = await r.json();
+                alert(d.message || d.error);
+                if (r.ok) btnAdocao.style.display = "none";
+            });
+
+            function obterNomeOutroUsuario(chat) {
+                if (chat.outro_usuario_nome) return chat.outro_usuario_nome;
+                if (usuarioLocal && Number(chat.anunciante_id) === Number(usuarioLocal.id)) {
+                    return chat.adotante_nome || "Interessado";
+                }
+                return chat.anunciante_nome || "Responsável";
+            }
+
+            if (chats.length === 0) {
+                chatList.innerHTML = "<p style='color:white; text-align:center;'>Você ainda não possui conversas.</p>";
+                return;
+            }
+
+            chats.forEach((chat) => {
+                const nomeOutro = obterNomeOutroUsuario(chat);
+                const ehPerdido = chat.tipo_anuncio === 'PERDIDO';
+                const tagModalidade = ehPerdido
+                    ? `<span style="display:inline-block; background:#ff4d4d; color:#fff; font-size:10px; font-weight:bold; padding:2px 6px; border-radius:10px; margin-bottom:3px;">🚨 Animal Perdido</span><br>`
+                    : `<span style="display:inline-block; background:#1e90ff; color:#fff; font-size:10px; font-weight:bold; padding:2px 6px; border-radius:10px; margin-bottom:3px;">🐾 Adoção</span><br>`;
+
+                const li = document.createElement("li");
+                li.innerHTML = `
+                    <img src="${chat.imagem || chat.animal_imagem}" alt="${chat.nome || chat.animal_nome}">
+                    <div>
+                        ${tagModalidade}
+                        <strong>${chat.nome || chat.animal_nome}</strong><br>
+                        <small style="font-size: 13px; color: #666;">Com: ${nomeOutro}</small>
+                    </div>
+                `;
+                li.style.cursor = 'pointer';
+                li.addEventListener("click", () => carregarChat(chat));
+                chatList.appendChild(li);
+            });
+
+            async function carregarChat(chat) {
+                chatAtivo = chat;
+                const nomeAnimal = chat.nome || chat.animal_nome;
+                const nomeOutro = obterNomeOutroUsuario(chat);
+                const ehPerdido = chat.tipo_anuncio === 'PERDIDO';
+
+                const badgeHeader = ehPerdido
+                    ? `<span style="background:#ff4d4d; color:#fff; font-size:12px; font-weight:bold; padding:3px 10px; border-radius:12px; margin-right:8px; vertical-align:middle;">🚨 Animal Perdido</span>`
+                    : `<span style="background:#1e90ff; color:#fff; font-size:12px; font-weight:bold; padding:3px 10px; border-radius:12px; margin-right:8px; vertical-align:middle;">🐾 Adoção</span>`;
+
+                chatTitle.innerHTML = `${badgeHeader} ${nomeAnimal} — Conversa com ${nomeOutro}`;
+                animalImage.src = chat.imagem || chat.animal_imagem;
+
+                if (chat.sou_anunciante && chat.status_anuncio === 'ATIVO') {
+                    btnAdocao.innerHTML = ehPerdido
+                        ? `<span>✅ Marcar como Encontrado</span>`
+                        : `<span>✅ Confirmar Adoção</span>`;
+                    btnAdocao.style.display = "flex";
+                } else {
+                    btnAdocao.style.display = "none";
+                }
+
+                await atualizarMensagens();
+            }
+
+            async function atualizarMensagens() {
+                if (!chatAtivo) return;
+                const resMsg = await fetch(`/api/chats/${chatAtivo.chat_id}/mensagens`, {
+                    credentials: 'same-origin',
+                    headers: obterHeaders()
+                });
+                const lista = await resMsg.json();
+                messagesContainer.innerHTML = "";
+
+                const nomeOutro = obterNomeOutroUsuario(chatAtivo);
+
+                lista.forEach(msg => {
+                    const div = document.createElement("div");
+                    div.className = `message ${msg.tipo}`;
+
+                    const autor = msg.remetente_nome
+                        ? msg.remetente_nome
+                        : (msg.tipo === 'sent' ? meuNomePadrao : nomeOutro);
+
+                    div.innerHTML = `<strong>${autor}:</strong> ${msg.texto}`;
+
+                    const spanTime = document.createElement("div");
+                    spanTime.className = "timestamp";
+                    spanTime.textContent = new Date(msg.timestamp).toLocaleString('pt-BR', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                    });
+
+                    div.appendChild(spanTime);
+                    messagesContainer.appendChild(div);
+                });
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            sendButton.addEventListener("click", async () => {
+                if (!chatAtivo || !messageInput.value.trim()) return;
+                await fetch(`/api/chats/${chatAtivo.chat_id}/mensagens`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: obterHeaders(),
+                    body: JSON.stringify({ texto: messageInput.value.trim() })
+                });
+                messageInput.value = "";
+                await atualizarMensagens();
+            });
+
+            messageInput.addEventListener("keypress", (e) => {
+                if (e.key === "Enter") sendButton.click();
+            });
+
+            const inicial = animalIdParam
+                ? chats.find(c => String(c.animal_id) === String(animalIdParam))
+                : chats[0];
+            carregarChat(inicial || chats[0]);
         });
-    }
-
-    const res = await fetch('/api/chats');
-    const chats = await res.json();
-    let chatAtivo = null;
-
-    chats.forEach((chat) => {
-        const li = document.createElement("li");
-        li.innerHTML = `<img src="${chat.imagem}" alt="${chat.nome}"><div>${chat.nome}</div>`;
-        li.style.cursor = 'pointer';
-        li.addEventListener("click", () => carregarChat(chat));
-        chatList.appendChild(li);
-    });
-
-    async function carregarChat(chat) {
-        chatAtivo = chat;
-        chatTitle.textContent = chat.nome;
-        animalImage.src = chat.imagem;
-        await atualizarMensagens();
-    }
-
-    async function atualizarMensagens() {
-        if (!chatAtivo) return;
-        const resMsg = await fetch(`/api/chats/${chatAtivo.chat_id}/mensagens`);
-        const lista = await resMsg.json();
-        messagesContainer.innerHTML = "";
-        lista.forEach(msg => {
-            const div = document.createElement("div");
-            div.className = `message ${msg.tipo}`;
-            div.textContent = msg.texto;
-            const spanTime = document.createElement("div");
-            spanTime.className = "timestamp";
-            spanTime.textContent = new Date(msg.timestamp).toLocaleString('pt-BR');
-            div.appendChild(spanTime);
-            messagesContainer.appendChild(div);
-        });
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-
-    sendButton.addEventListener("click", async () => {
-        if (!chatAtivo || !messageInput.value.trim()) return;
-        await fetch(`/api/chats/${chatAtivo.chat_id}/mensagens`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ texto: messageInput.value.trim() })
-        });
-        messageInput.value = "";
-        await atualizarMensagens();
-    });
-
-    if (chats.length > 0) {
-        const inicial = animalIdParam ? chats.find(c => String(c.animal_id) === String(animalIdParam)) : chats[0];
-        carregarChat(inicial || chats[0]);
-    }
-});
     </script>
 </body>
 </html>

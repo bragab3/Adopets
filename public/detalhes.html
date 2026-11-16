@@ -253,13 +253,17 @@
     function mostrarDetalhes(animal) {
       const container = document.getElementById('animal-details');
       const nomeAnimal = animal.nome || animal.anuncio_nome || 'Sem nome';
-      const imagemAnimal = animal.imagem || animal.imagem_url || animal.imagem_data || 'Images/cachorro1.png';
+      const imagemAnimal = animal.imagem || animal.imagem_url || 'Images/cachorro1.png';
       const dataNasc = animal.dataNascimento || animal.data_nascimento || 'Não informado';
       const localAnimal = animal.local || animal.localidade || 'Não informado';
+      const ehPerdido = animal.tipo_anuncio === 'PERDIDO';
 
       container.innerHTML = `
         <img src="${imagemAnimal}" alt="Foto do ${nomeAnimal}" />
+        ${ehPerdido ? `<div style="display:inline-block; background:#ff4d4d; color:#fff; padding:4px 12px; border-radius:15px; font-size:12px; font-weight:bold; margin-bottom:10px;">🚨 ANIMAL PERDIDO</div>` : ''}
         <h2>${nomeAnimal}</h2>
+        <p><strong>Responsável pelo anúncio:</strong> ${animal.responsavel_nome || 'Usuário'}</p>
+        <p><strong>Contato:</strong> ${animal.responsavel_telefone || 'Via Chat'}</p>
         <p><strong>Descrição:</strong> ${animal.descricao || 'Não informado'}</p>
         <p><strong>Raça:</strong> ${animal.raca || 'Não informado'}</p>
         <p><strong>Idade:</strong> ${animal.idade !== undefined ? animal.idade + ' anos' : 'Não informado'}</p>
@@ -269,23 +273,39 @@
         <p><strong>Tipo:</strong> ${animal.tipo || 'Não informado'}</p>
         <p><strong>Local:</strong> ${localAnimal}</p>
       `;
+
+      if (ehPerdido) {
+        const backLink = document.querySelector('.back-link');
+        if (backLink) {
+          backLink.href = 'animais_perdidos.html';
+          backLink.textContent = '← Voltar para Animais Perdidos';
+        }
+        const cardDireito = document.querySelector('.page-container .card:nth-child(2)');
+        if (cardDireito) {
+          cardDireito.innerHTML = `
+            <h2 style="color: #ff6b6b;">🚨 Animal Desaparecido</h2>
+            <p>Este animal está sendo procurado por seu tutor/responsável (${animal.responsavel_nome || 'Usuário'}).</p>
+            <p>Se você viu este pet ou tem qualquer informação sobre o paradeiro dele, entre em contato imediatamente pelo nosso chat!</p>
+            <div class="chat-section">
+              <button id="btn-chat" style="background-color:#ff4d4d;" onclick="irParaChat()">💬 Avisar Responsável no Chat</button>
+            </div>
+          `;
+        }
+      }
     }
 
-    // Ativa checkbox quando o usuário rolar até o fim do termo
     function verificarScrollTermo() {
       const termo = document.getElementById('termo-completo');
       const checkbox = document.getElementById('aceite-termo');
-
-      if (termo.scrollTop + termo.clientHeight >= termo.scrollHeight - 5) {
+      if (termo && checkbox && termo.scrollTop + termo.clientHeight >= termo.scrollHeight - 5) {
         checkbox.disabled = false;
       }
     }
 
-    // Mostra/oculta termo e reseta checkbox e botão
     function toggleTermo() {
       const termo = document.getElementById('termo-completo');
+      if (!termo) return;
       termo.style.display = termo.style.display === 'none' || termo.style.display === '' ? 'block' : 'none';
-
       if (termo.style.display === 'block') {
         const checkbox = document.getElementById('aceite-termo');
         const btn = document.getElementById('btn-chat');
@@ -293,33 +313,67 @@
         checkbox.disabled = true;
         btn.disabled = true;
         termo.scrollTop = 0;
-        // Caso o texto caiba inteiro na caixa sem precisar de scroll, já libera o checkbox
         verificarScrollTermo();
       }
     }
 
-    function irParaChat() {
+    async function irParaChat() {
       const id = getQueryParam('id');
-      window.location.href = `chats.html?animalId=${id}`;
+      const usuarioLocal = JSON.parse(localStorage.getItem('usuarioLogado') || 'null');
+      const headers = { 'Content-Type': 'application/json' };
+      if (usuarioLocal && usuarioLocal.id) {
+        headers['x-usuario-id'] = String(usuarioLocal.id);
+      }
+
+      try {
+        const res = await fetch('/api/chats', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers,
+          body: JSON.stringify({ animal_id: id })
+        });
+        const data = await res.json();
+        if (res.status === 401) {
+          alert('Faça login para iniciar uma conversa.');
+          window.location.href = 'login.html';
+          return;
+        }
+        if (!res.ok) {
+          alert(data.error || 'Erro ao abrir chat');
+          return;
+        }
+        window.location.href = `chats.html?animalId=${id}`;
+      } catch (err) {
+        alert('Erro ao iniciar conversa.');
+      }
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
       const id = getQueryParam('id');
+      if (!id) return;
 
-      if (!id) {
-        document.getElementById('animal-details').innerHTML = '<p>Animal não encontrado.</p>';
-        document.querySelector('.card:nth-child(2)').style.display = 'none';
-        return;
-      }
+      const usuarioLocal = JSON.parse(localStorage.getItem('usuarioLogado') || 'null');
 
-      // Busca os detalhes do animal diretamente do MySQL
       try {
         const res = await fetch(`/api/animais/${id}`);
-        if (!res.ok) throw new Error('Animal não encontrado no banco');
+        if (!res.ok) throw new Error('Animal não encontrado');
         const animal = await res.json();
         mostrarDetalhes(animal);
+
+        if (usuarioLocal && Number(usuarioLocal.id) === Number(animal.usuario_id)) {
+          const chatSection = document.querySelector('.chat-section');
+          if (chatSection) {
+            chatSection.innerHTML = `
+              <p style="color: #ffd700; font-weight: bold; margin-top: 15px;">
+                ✨ Este anúncio foi publicado por você (${usuarioLocal.nome}).
+              </p>
+              <button onclick="window.location.href='editar_animal.html?id=${animal.id}'">
+                ✏️ Editar Meu Anúncio
+              </button>
+            `;
+          }
+        }
       } catch (err) {
-        console.error('Erro ao buscar detalhes do animal:', err);
         document.getElementById('animal-details').innerHTML = '<p>Animal não encontrado.</p>';
         document.querySelector('.card:nth-child(2)').style.display = 'none';
         return;
@@ -329,38 +383,20 @@
       const checkbox = document.getElementById('aceite-termo');
       const btn = document.getElementById('btn-chat');
 
-      termo.addEventListener('scroll', verificarScrollTermo);
-
-      checkbox.addEventListener('change', () => {
-        btn.disabled = !checkbox.checked;
-      });
+      if (termo && checkbox && btn) {
+        termo.addEventListener('scroll', verificarScrollTermo);
+        checkbox.addEventListener('change', () => {
+          btn.disabled = !checkbox.checked;
+        });
+      }
 
       const perfilUsuario = document.getElementById("perfil-usuario");
       const miniNavbar = document.getElementById("mini-navbar");
-
       perfilUsuario.addEventListener("click", (e) => {
         e.stopPropagation();
         miniNavbar.style.display = (miniNavbar.style.display === "block") ? "none" : "block";
       });
-
-      document.addEventListener("click", (e) => {
-        if (!miniNavbar.contains(e.target) && e.target !== perfilUsuario && !perfilUsuario.contains(e.target)) {
-          miniNavbar.style.display = "none";
-        }
-      });
-
-      const linksMiniNavbar = miniNavbar.querySelectorAll("a");
-      linksMiniNavbar.forEach(link => {
-        link.addEventListener("click", () => {
-          miniNavbar.style.display = "none";
-        });
-      });
     });
-
-    function logout() {
-      alert("Logout realizado!");
-      window.location.href = "login.html";
-    }
   </script>
 </body>
 </html>

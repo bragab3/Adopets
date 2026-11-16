@@ -3,196 +3,154 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Cadastro de Animal</title>
+  <title>Cadastro de Animal - AdoPetz</title>
   <link rel="shortcut icon" href="Images/Adopt 500x500.png" type="image/x-icon" />
   <style>
-    /* Styles for Upload Page - Modern Blue Theme */
-
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
-.logout-button {
-  position: fixed;
-  top: 20px;
-  left: 20px;
-  width: 40px;
-  height: 40px;
-  cursor: pointer;
-  transition: transform 0.2s ease;
-  z-index: 999;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-}
-
-
-.logout-button:hover {
-  transform: scale(1.1);
-}
-
-.logout-icon {
-  width: 100%;
-  height: auto;
-}
+    .logout-button {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+      z-index: 999;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+    .logout-button:hover {
+      transform: scale(1.1);
+    }
+    .logout-icon {
+      width: 100%;
+      height: auto;
+    }
     body {
-        font-family: 'Inter', sans-serif;
-        background-color: #1e3a5f;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        margin: 0;
-        background: linear-gradient(135deg, #1e3a5f, #2a5298);
+      font-family: 'Inter', sans-serif;
+      background-color: #1e3a5f;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 30px 0;
+      background: linear-gradient(135deg, #1e3a5f, #2a5298);
     }
-
     .container {
-        background-color: #324a7a;
-        padding: 30px;
-        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
-        border-radius: 15px;
-        width: 350px;
-        transition: transform 0.2s ease;
+      background-color: #324a7a;
+      padding: 30px;
+      box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+      border-radius: 15px;
+      width: 360px;
     }
-
-    .container:hover {
-        transform: scale(1.01);
-    }
-
     .logo {
-        display: block;
-        margin: 0 auto 20px;
-        max-width: 75px;
-        height: auto;
+      display: block;
+      margin: 0 auto 20px;
+      max-width: 75px;
+      height: auto;
     }
-
     .cadastro-title {
-        color: #ffffff;
-        margin-bottom: 25px;
-        font-weight: 500;
-        text-align: center;
+      color: #ffffff;
+      margin-bottom: 20px;
+      font-weight: 600;
+      text-align: center;
     }
-
-    h2 {
-        color: #ffffff;
-        margin-bottom: 15px;
-        font-weight: 500;
-        text-align: left;
-    }
-
     form {
-        display: flex;
-        flex-direction: column;
+      display: flex;
+      flex-direction: column;
     }
-
     label {
-        margin-bottom: 5px;
-        color: #dbe3f0;
+      margin-bottom: 5px;
+      color: #dbe3f0;
+      font-size: 14px;
     }
-
     input[type="file"],
     input[type="text"],
     input[type="date"],
+    input[type="number"],
     select,
     textarea {
-        padding: 12px;
-        margin-bottom: 20px;
-        border: 1px solid #5a6e96;
-        border-radius: 8px;
-        font-size: 15px;
-        background-color: #3e577e;
-        color: #ffffff;
-        outline: none;
-        transition: border 0.3s ease;
+      padding: 12px;
+      margin-bottom: 16px;
+      border: 1px solid #5a6e96;
+      border-radius: 8px;
+      font-size: 15px;
+      background-color: #3e577e;
+      color: #ffffff;
+      outline: none;
+      transition: border 0.3s ease;
     }
-
-    input[type="file"]:focus,
-    input[type="text"]:focus,
-    input[type="date"]:focus,
-    select:focus,
-    textarea:focus {
-        border: 1px solid #1e90ff;
+    input:focus, select:focus, textarea:focus {
+      border: 1px solid #1e90ff;
     }
-
-    input::placeholder,
-    textarea::placeholder {
-        color: #a9b2c3;
+    input::placeholder, textarea::placeholder {
+      color: #a9b2c3;
     }
-
     input[type="submit"] {
-        background-color: #1e90ff;
-        color: white;
-        padding: 12px;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 16px;
-        font-weight: bold;
-        transition: background-color 0.3s ease;
+      background-color: #1e90ff;
+      color: white;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      transition: background-color 0.3s ease;
     }
-
     input[type="submit"]:hover {
-        background-color: #1c86ee;
+      background-color: #1c86ee;
     }
-
     #preview {
-        margin: 15px 0;
-        border: 1px solid #5a6e96;
-        border-radius: 8px;
-        max-width: 100%;
-        display: none;
+      margin: 10px 0 16px 0;
+      border: 1px solid #5a6e96;
+      border-radius: 8px;
+      max-width: 100%;
+      display: none;
     }
-
     #mensagem {
-        margin-bottom: 20px;
-        text-align: center;
-        font-weight: bold;
+      margin-bottom: 15px;
+      text-align: center;
+      font-weight: bold;
     }
   </style>
-  <a href="catalogo.html" class="logout-button">
-        <img src="images/sair.png" alt="Voltar" class="logout-icon" />
-    </a>
 </head>
 <body>
+  <a href="catalogo.html" class="logout-button">
+    <img src="images/sair.png" alt="Voltar" class="logout-icon" />
+  </a>
+
   <div class="container">
     <a href="catalogo.html">
       <img src="Images/Adopt 75x75.png" alt="Logo Adopetz" class="logo" />
-       
-        
     </a>
-    
-    
-    <h2 class="cadastro-title">Cadastro de Animal</h2>
 
+    <h2 class="cadastro-title" id="titulo-pagina">Cadastro de Animal</h2>
     <div id="mensagem"></div>
 
     <form id="form-cadastro" enctype="multipart/form-data" novalidate>
+      <label for="tipo_anuncio">Finalidade do Anúncio:</label>
+      <select id="tipo_anuncio" name="tipo_anuncio" required>
+        <option value="ADOCAO">🐾 Disponível para Adoção</option>
+        <option value="PERDIDO">🚨 Animal Perdido / Desaparecido</option>
+      </select>
+
       <label for="foto">Selecione a Foto:</label>
       <input type="file" id="foto" name="foto" accept="image/*" required />
 
-      <label for="anuncioNome">Nome do Anúncio:</label>
-      <input
-        type="text"
-        id="anuncioNome"
-        name="anuncioNome"
-        placeholder="Nome do Anúncio"
-        required
-      />
+      <label for="anuncioNome">Nome do Animal / Anúncio:</label>
+      <input type="text" id="anuncioNome" name="anuncioNome" placeholder="Ex: Thor" required />
 
       <label for="descricao">Descrição:</label>
-      <textarea
-        id="descricao"
-        name="descricao"
-        placeholder="Descrição"
-        required
-      ></textarea>
+      <textarea id="descricao" name="descricao" placeholder="Características do animal..." required></textarea>
 
       <label for="raca">Raça:</label>
-      <input
-        type="text"
-        id="raca"
-        name="raca"
-        placeholder="Raça"
-        required
-      />
+      <input type="text" id="raca" name="raca" placeholder="Raça ou SRD" required />
 
       <label for="dataNascimento">Data de Nascimento:</label>
       <input type="date" id="dataNascimento" name="dataNascimento" required />
+
+      <label for="idade">Idade (anos):</label>
+      <input type="number" id="idade" name="idade" min="0" max="30" placeholder="Ex: 2" required />
 
       <label for="vacinado">Vacinado:</label>
       <select id="vacinado" name="vacinado" required>
@@ -201,15 +159,8 @@
       </select>
 
       <label for="coloracao">Coloração:</label>
-      <input
-        type="text"
-        id="coloracao"
-        name="coloracao"
-        placeholder="Coloração"
-        required
-      />
+      <input type="text" id="coloracao" name="coloracao" placeholder="Ex: Caramelo, Preto e Branco..." required />
 
-      <!-- NOVOS CAMPOS -->
       <label for="localidade">Localidade:</label>
       <select id="localidade" name="localidade" required>
         <option value="">Selecione a localidade</option>
@@ -228,7 +179,7 @@
 
       <img id="preview" alt="Pré-visualização da imagem" />
 
-      <input type="submit" value="Cadastrar Animal" />
+      <input type="submit" id="btn-submit" value="Publicar Anúncio" />
     </form>
   </div>
 
@@ -237,6 +188,39 @@
     const previewImg = document.getElementById('preview');
     const form = document.getElementById('form-cadastro');
     const mensagemDiv = document.getElementById('mensagem');
+    const selectModalidade = document.getElementById('tipo_anuncio');
+    const tituloPagina = document.getElementById('titulo-pagina');
+    const inputDataNasc = document.getElementById('dataNascimento');
+    const inputIdade = document.getElementById('idade');
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('modalidade') === 'PERDIDO') {
+      selectModalidade.value = 'PERDIDO';
+      tituloPagina.textContent = 'Divulgar Animal Perdido';
+    }
+
+    selectModalidade.addEventListener('change', () => {
+      tituloPagina.textContent = selectModalidade.value === 'PERDIDO'
+        ? 'Divulgar Animal Perdido'
+        : 'Cadastro de Animal';
+    });
+
+    function calcularIdade(dataNascimento) {
+      if (!dataNascimento) return 0;
+      const hoje = new Date();
+      const nascimento = new Date(dataNascimento);
+      let idade = hoje.getFullYear() - nascimento.getFullYear();
+      const m = hoje.getMonth() - nascimento.getMonth();
+      if (m < 0 || (m === 0 && hoje.getDate() < nascimento.getDate())) {
+        idade--;
+      }
+      return Math.max(0, idade);
+    }
+
+    // Quando escolhe a data de nascimento, preenche a idade automaticamente
+    inputDataNasc.addEventListener('change', () => {
+      inputIdade.value = calcularIdade(inputDataNasc.value);
+    });
 
     fotoInput.addEventListener('change', function () {
       const file = this.files[0];
@@ -254,35 +238,59 @@
     });
 
     form.addEventListener('submit', async function (e) {
-  e.preventDefault();
-  const formData = new FormData(form);
-  formData.append('idade', calcularIdade(form.dataNascimento.value));
+      e.preventDefault();
 
-  const res = await fetch('/api/animais', {
-    method: 'POST',
-    body: formData
-  });
-  if (!res.ok) {
-    mensagemDiv.textContent = 'Erro ao cadastrar animal no banco.';
-    mensagemDiv.style.color = 'red';
-    return;
-  }
-  mensagemDiv.textContent = 'Anúncio cadastrado com sucesso no MySQL!';
-  mensagemDiv.style.color = 'lightgreen';
-  setTimeout(() => window.location.href = 'catalogo.html', 1200);
-});
-
-    function calcularIdade(dataNascimento) {
-      if (!dataNascimento) return 0;
-      const hoje = new Date();
-      const nascimento = new Date(dataNascimento);
-      let idade = hoje.getFullYear() - nascimento.getFullYear();
-      const m = hoje.getMonth() - nascimento.getMonth();
-      if (m < 0 || (m === 0 && hoje.getDate() < nascimento.getDate())) {
-        idade--;
+      if (!fotoInput.files[0]) {
+        mensagemDiv.textContent = 'Por favor, selecione uma foto do animal.';
+        mensagemDiv.style.color = '#ff6b6b';
+        return;
       }
-      return idade;
-    }
+
+      const usuarioLocal = JSON.parse(localStorage.getItem('usuarioLogado') || 'null');
+      const formData = new FormData(form);
+
+      // Se o campo idade estiver vazio, calcula pela data
+      const idadeFinal = inputIdade.value !== '' ? inputIdade.value : calcularIdade(inputDataNasc.value);
+      formData.set('idade', idadeFinal);
+
+      if (usuarioLocal && usuarioLocal.id) {
+        formData.append('usuario_id', usuarioLocal.id);
+      }
+
+      const headers = {};
+      if (usuarioLocal && usuarioLocal.id) {
+        headers['x-usuario-id'] = String(usuarioLocal.id);
+      }
+
+      try {
+        const res = await fetch('/api/animais', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers,
+          body: formData
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          mensagemDiv.textContent = data.error || 'Erro ao cadastrar animal.';
+          mensagemDiv.style.color = '#ff6b6b';
+          return;
+        }
+
+        const eraPerdido = selectModalidade.value === 'PERDIDO';
+        mensagemDiv.textContent = 'Anúncio publicado com sucesso!';
+        mensagemDiv.style.color = 'lightgreen';
+        form.reset();
+        previewImg.style.display = 'none';
+
+        setTimeout(() => {
+          window.location.href = eraPerdido ? 'animais_perdidos.html' : 'meus_anuncios.html';
+        }, 800);
+      } catch (err) {
+        mensagemDiv.textContent = 'Erro de conexão com o servidor.';
+        mensagemDiv.style.color = '#ff6b6b';
+      }
+    });
   </script>
 </body>
 </html>

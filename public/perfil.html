@@ -306,8 +306,56 @@
     }
   </style>
 
-  <script defer>
+   <script defer>
+    let dadosUsuarioAtual = null;
+
+    async function carregarPerfilDoBanco() {
+      try {
+        const res = await fetch('/api/usuario-dados', { credentials: 'same-origin' });
+        if (res.status === 401) {
+          window.location.href = 'login.html';
+          return;
+        }
+        const u = await res.json();
+        dadosUsuarioAtual = u;
+
+        // Atualiza cabeçalho
+        document.querySelectorAll('.nome-usuario').forEach(el => el.textContent = u.nome);
+        document.querySelectorAll('.foto-usuario').forEach(el => el.src = u.foto || 'Images/cliente.png');
+
+        // Atualiza card principal do perfil
+        const fotoPerfil = document.querySelector('.perfil-foto');
+        if (fotoPerfil) fotoPerfil.src = u.foto || 'Images/cliente.png';
+
+        const infoDiv = document.querySelector('.perfil-info');
+        if (infoDiv) {
+          infoDiv.innerHTML = `
+            <h2>${u.nome}</h2>
+            <p>CPF: ${u.cpf}</p>
+            <p>Email: ${u.email}</p>
+            <p>Telefone: ${u.telefone}</p>
+            <p>Endereço: ${u.endereco}</p>
+            <div class="botoes">
+              <button onclick="editarPerfil()" class="botao-acao">Editar Dados</button>
+              <button onclick="excluirConta()" class="botao-acao excluir">Excluir Conta</button>
+            </div>
+          `;
+        }
+
+        // Atualiza estatísticas reais do banco (Pets Doados e Pets Adotados)
+        const boxes = document.querySelectorAll('.box-estatistica p');
+        if (boxes.length >= 2) {
+          boxes[0].textContent = u.pets_doados ?? 0;
+          boxes[1].textContent = u.pets_adotados ?? 0;
+        }
+      } catch (err) {
+        console.error('Erro ao carregar perfil:', err);
+      }
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
+      carregarPerfilDoBanco();
+
       const perfilUsuario = document.getElementById("perfil-usuario");
       const miniNavbar = document.getElementById("mini-navbar");
 
@@ -328,39 +376,128 @@
         });
       });
 
-      // Animação da barra de XP
-      const barraInterna = document.querySelector(".barra-interna");
-      if(barraInterna){
-        setTimeout(() => {
-          barraInterna.style.width = "75%";
-        }, 100);
+      // Salvar edição do perfil no MySQL
+      const btnSalvarModal = document.querySelector("#modal-editar .botao-acao");
+      if (btnSalvarModal) {
+        btnSalvarModal.onclick = async () => {
+          const inputs = document.querySelectorAll("#modal-editar input");
+          const payload = {
+            nome: inputs[0].value.trim(),
+            email: inputs[1].value.trim(),
+            telefone: inputs[2].value.trim(),
+            endereco: inputs[3].value.trim()
+          };
+          const res = await fetch('/api/perfil', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (res.ok) {
+            alert('Alterações salvas no banco de dados!');
+            document.getElementById("modal-editar").style.display = "none";
+            carregarPerfilDoBanco();
+          } else {
+            alert('Erro ao atualizar perfil.');
+          }
+        };
       }
 
-      // Tooltip interativo para dispositivos touch
-      const tooltip = document.querySelector(".tooltip-container");
-      if (tooltip) {
-        tooltip.addEventListener("click", (e) => {
-          e.preventDefault();
-          tooltip.classList.toggle("show-tooltip");
-        });
-
-        document.addEventListener("click", (e) => {
-          if (!tooltip.contains(e.target)) {
-            tooltip.classList.remove("show-tooltip");
-          }
-        });
+      const barraInterna = document.querySelector(".barra-interna");
+      if (barraInterna) {
+        setTimeout(() => { barraInterna.style.width = "75%"; }, 100);
       }
     });
 
     function editarPerfil() {
-      document.getElementById("modal-editar").style.display = "flex";
+      const modal = document.getElementById("modal-editar");
+      if (dadosUsuarioAtual) {
+        const inputs = modal.querySelectorAll("input");
+        if (inputs.length >= 4) {
+          inputs[0].value = dadosUsuarioAtual.nome || '';
+          inputs[1].value = dadosUsuarioAtual.email || '';
+          inputs[2].value = dadosUsuarioAtual.telefone || '';
+          inputs[3].value = dadosUsuarioAtual.endereco || '';
+        }
+      }
+      modal.style.display = "flex";
     }
 
-    function excluirConta() {
-      if (confirm("Tem certeza que deseja excluir sua conta?")) {
-        window.location.href = "home.html";
+    async function excluirConta() {
+      if (confirm("Tem certeza que deseja excluir sua conta permanentemente?")) {
+        const res = await fetch('/api/perfil', { method: 'DELETE' });
+        if (res.ok) {
+          localStorage.removeItem('usuarioLogado');
+          window.location.href = "home.html";
+        }
       }
     }
+    async function carregarAvaliacoes() {
+      const uLocal = JSON.parse(localStorage.getItem('usuarioLogado') || 'null');
+      const headers = { 'Content-Type': 'application/json' };
+      if (uLocal && uLocal.id) headers['x-usuario-id'] = String(uLocal.id);
+
+      // 1. Carrega adoções em que o usuário participou (como adotante ou anunciante)
+      const resAdocoes = await fetch('/api/minhas-adocoes', { credentials: 'same-origin', headers });
+      const divAdocoes = document.getElementById('lista-minhas-adocoes');
+
+      if (resAdocoes.ok) {
+        const adocoes = await resAdocoes.json();
+        if (adocoes.length === 0) {
+          divAdocoes.innerHTML = '<p style="font-size:16px; color:#666;">Você ainda não possui adoções concluídas.</p>';
+        } else {
+          divAdocoes.innerHTML = adocoes.map(ad => `
+            <div style="background:#fff; padding:15px; border-radius:12px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-left: 4px solid #00b4d8;">
+              <div>
+                <strong>Pet: ${ad.animal_nome}</strong> (${ad.animal_raca})<br>
+                <small>Doador: ${ad.anunciante_nome || 'Responsável'} | Adotante: ${ad.adotante_nome || 'Adotante'}</small><br>
+                ${ad.minha_avaliacao ? `<span style="color:#0077b6; font-size:14px;">Sua avaliação: "${ad.minha_avaliacao}"</span>` : ''}
+              </div>
+              <button class="botao-acao" onclick="avaliarAdocao(${ad.id}, '${ad.minha_avaliacao || ''}')">
+                ${ad.minha_avaliacao ? '✏️ Editar Avaliação' : '⭐ Avaliar Adoção'}
+              </button>
+            </div>
+          `).join('');
+        }
+      }
+
+      // 2. Carrega todas as avaliações da tabela `avaliacao`
+      const resAval = await fetch('/api/avaliacoes');
+      const divAval = document.getElementById('lista-avaliacoes-comunidade');
+      if (resAval.ok) {
+        const avaliacoes = await resAval.json();
+        if (avaliacoes.length === 0) {
+          divAval.innerHTML = '<p style="font-size:16px; color:#666;">Ainda não há avaliações cadastradas.</p>';
+        } else {
+          divAval.innerHTML = avaliacoes.map(av => `
+            <div style="background:#fff; padding:14px; border-radius:12px; margin-bottom:10px; border-left: 4px solid #ffd700;">
+              <strong>${av.autor_nome}</strong> avaliou a adoção de <strong>${av.animal_nome}</strong>:
+              <p style="margin:6px 0 0 0; font-size:16px; color:#333;">"${av.comentario}"</p>
+            </div>
+          `).join('');
+        }
+      }
+    }
+
+    async function avaliarAdocao(adocaoId, textoAtual) {
+      const comentario = prompt('Deixe seu comentário/avaliação sobre esta adoção:', textoAtual || '');
+      if (!comentario || !comentario.trim()) return;
+
+      const uLocal = JSON.parse(localStorage.getItem('usuarioLogado') || 'null');
+      const headers = { 'Content-Type': 'application/json' };
+      if (uLocal && uLocal.id) headers['x-usuario-id'] = String(uLocal.id);
+
+      const res = await fetch('/api/avaliacoes', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers,
+        body: JSON.stringify({ adocao_id: adocaoId, comentario })
+      });
+      const data = await res.json();
+      alert(data.message || data.error);
+      carregarAvaliacoes();
+    }
+
+    document.addEventListener('DOMContentLoaded', carregarAvaliacoes);
   </script>
 </head>
 <body>
@@ -436,40 +573,12 @@
       </div>
     </div>
 
-    <!-- BARRA DE XP COM TOOLTIP -->
-    <div class="progresso-nivel">
-      <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 10px;">
-        <label for="nivel">Quase lá! Próximo nível:</label>
-        <span class="tooltip-container" tabindex="0" aria-label="Ajuda sobre como ganhar XP">❓
-          <div class="tooltip-text">
-            Você ganha XP ao interagir no blog, doar dinheiro, doar um animal e adotar.
-          </div>
-        </span>
-      </div>
-      <div style="display: flex; align-items: center; gap: 10px; justify-content: center;">
-        <div class="barra-externa">
-          <div class="barra-interna">75%</div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 5px;">
-          <span style="font-size: 20px;">2</span>
-          <img src="https://cdn-icons-png.flaticon.com/512/616/616489.png" alt="Estrela" width="24">
-        </div>
-      </div>
-    </div>
+   <!-- SEÇÃO DE ADOÇÕES E AVALIAÇÕES (TABELA avaliacao DO MYSQL) -->
+    <div style="width: 100%; max-width: 900px; margin-top: 45px; background: #f0f8ff; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.12);">
+      <h3 style="color: #0077b6; font-size: 26px; margin-top: 0;">⭐ Minhas Adoções para Avaliar</h3>
+      <div id="lista-minhas-adocoes">Carregando adoções...</div>
 
-    <div class="perfil-estatisticas">
-      <div class="box-estatistica">
-        <h3>Pets Doados</h3>
-        <p>2</p>
-      </div>
-      <div class="box-estatistica">
-        <h3>Pets Adotados</h3>
-        <p>3</p>
-      </div>
-      <div class="box-estatistica">
-        <h3>XPet</h3>
-        <p>200 ⭐</p>
-      </div>
+    
     </div>
 
   </main>
