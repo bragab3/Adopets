@@ -10,26 +10,6 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Otimização: ambos configuráveis pelo .env, para repetir o teste de carga com
-// valores diferentes sem mexer no código.
-//   DB_POOL_SIZE     conexões do pool MySQL por processo   (padrão: 10, como antes)
-//   CLUSTER_WORKERS  processos Node (cluster)              (padrão: 1 = sem cluster)
-const DB_POOL_SIZE = Number(process.env.DB_POOL_SIZE) || 10;
-const CLUSTER_WORKERS = Number(process.env.CLUSTER_WORKERS) || 1;
-
-// Otimizações (opcionais), também ligadas/desligadas pelo .env:
-//   DB_PREWARM      1 (padrão) abre as conexões do pool na partida, antes de aceitar
-//                   requisições. 0 = abre sob demanda durante a rampa, como antes.
-//   DB_USE_EXECUTE  1 = prepared statements (pool.execute) no login e no cadastro, que o
-//                   mysql2 guarda em cache por conexão. 0 (padrão) = pool.query, como antes.
-const DB_PREWARM = process.env.DB_PREWARM !== '0';
-const DB_USE_EXECUTE = process.env.DB_USE_EXECUTE === '1';
-
-// Otimização: remove o cabeçalho X-Powered-By e o cálculo de ETag (hash SHA-1)
-// que o Express faria em toda resposta da API.
-app.disable('x-powered-by');
-app.set('etag', false);
-
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT) || 3306,
@@ -40,16 +20,6 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   charset: 'utf8mb4'
 });
-
-// Consulta das rotas de login e cadastro. Com DB_USE_EXECUTE=1 usa prepared statement
-// (o servidor interpreta o SQL uma vez por conexão); caso contrário, pool.query como antes.
-// O pool.query converte parâmetro undefined em NULL, mas o pool.execute lança erro.
-// Normalizamos aqui para que as duas formas se comportem igual (ex.: campo ausente no
-// corpo da requisição continua dando 401 no login, e não 500).
-function consultar(sql, params) {
-  const valores = params.map((v) => (v === undefined ? null : v));
-  return DB_USE_EXECUTE ? pool.execute(sql, valores) : pool.query(sql, valores);
-}
 
 const uploadDir = path.join(__dirname, 'public', 'uploads');
 if (!fs.existsSync(uploadDir)) {

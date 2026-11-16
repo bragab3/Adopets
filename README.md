@@ -67,17 +67,15 @@ Rampa de 1 → 10 → 50 → 100 usuários virtuais, sem tempo de espera, durant
 
 | | Login M1 (09/11) | Login M2 (15/11) | Variação | Cadastro M1 (09/11) | Cadastro M2 (15/11) | Variação |
 |---|---:|---:|---:|---:|---:|---:|
-| Requisições | 939.635 | 669.424 | −28,8 % | 308.809 | 367.451 | +19,0 % |
-| Vazão média | 2.409 req/s | 1.716 req/s | −28,8 % | 792 req/s | 942 req/s | +19,0 % |
-| Latência média | 15,29 ms | 21,54 ms | +40,9 % | 46,69 ms | 39,32 ms | −15,8 % |
-| Latência p95 | 56,54 ms | 60,18 ms | +6,4 % | 96,61 ms | 100,48 ms | +4,0 % |
-| Latência máxima | 345,18 ms | 232,68 ms | −32,6 % | 1.149,86 ms | 533,83 ms | −53,6 % |
+| Requisições | 939.635 | 669.424 | −28,8 % | 308.809 | 355.712 | +15,2 % |
+| Vazão média | 2.409 req/s | 1.716 req/s | −28,8 % | 792 req/s | 912 req/s | +15,2 % |
+| Latência média | 15,29 ms | 21,54 ms | +40,9 % | 46,69 ms | 40,53 ms | −13,2 % |
+| Latência p95 | 56,54 ms | 60,18 ms | +6,4 % | 96,61 ms | 84,33 ms | −12,7 % |
+| Latência máxima | 345,18 ms | 232,68 ms | −32,6 % | 1.149,86 ms | 4.698,82 ms | +308,6 % |
 | Erros | 0 % | 0 % | — | 0 % | 0 % | — |
 | Saturação da vazão | ≈ 50 VUs | ≈ 10 VUs | — | entre 10 e 50 VUs | ≈ 10 VUs | — |
 
-O Login da Medição 2 é a execução de 14:54 e o Cadastro da Medição 2, a de 20:35 (15/11/2026).
-
-Os dois serviços atenderam ao limite de exemplo (`p95 < 1000 ms` e `erros < 1 %`) nas duas medições. **O Cadastro melhorou** na vazão média (+19,0 %), na latência média (−15,8 %) e na latência máxima (−53,6 %), com o p95 praticamente igual (+4,0 %); o ganho está de 1 a 50 VUs e **se inverte com 100 VUs** (vazão −8,2 %, p95 +18,1 %). As paradas de 3–4 s não apareceram nesta execução, mas a causa não foi confirmada. **O Login não melhorou na vazão** (com 1 VU a latência caiu 24 %, mas com 50 VUs a vazão caiu 51 %); com uma rodada só, as otimizações não podem ser separadas das diferenças de ambiente entre as medições. Detalhes, gráficos e hipóteses estão no [RELATORIO.md](RELATORIO.md).
+Os dois serviços atenderam ao limite de exemplo (`p95 < 1000 ms` e `erros < 1 %`) nas duas medições. **O Cadastro melhorou** em vazão e latência, mas continua com paradas de 3–4 s (latência máxima de 4,7 s). **O Login não melhorou na vazão** (com 1 VU a latência caiu 24 %, mas com 50 VUs a vazão caiu 51 %); com uma rodada só, as otimizações não podem ser separadas das diferenças de ambiente entre as medições. Detalhes, gráficos e hipóteses estão no [RELATORIO.md](RELATORIO.md).
 
 ### 🛠️ O que foi otimizado entre as medições
 
@@ -107,11 +105,10 @@ Cada hipótese está detalhada, com evidência nos dados e experimento de valida
 | L4 | Login | Custo de autenticação irrealisticamente baixo: senha comparada em texto puro, sem hash | Mantida de propósito |
 | L5 | Login | Condições do ambiente diferentes entre as medições (horário, carga da máquina) | Aberta |
 | L6 | Login | Efeito das mudanças no caminho do login sob concorrência (`execute`, colunas, sessão) | Aberta |
-| C1 | Cadastro | Custo da escrita durável (commit no InnoDB): ≈ 8 ms por requisição com 1 VU | Continua sendo a principal hipótese |
-| C2 | Cadastro | Manutenção de 3 índices e crescimento da tabela | Atenuada (sem queda no patamar de 100 VUs), mas a vazão com 100 VUs ficou 8,2 % abaixo da Medição 1 |
-| C3 | Cadastro | Paradas curtas de 3–4 s | **Não reapareceu nesta execução** (máx. 534 ms); causa não confirmada |
-| C4 | Cadastro | Fila no pool, com duas consultas por requisição | Atendida em parte (1 consulta a menos); o pool não limitou uma janela de ≈ 14 s a ≈ 2.400 req/s |
-| C5 | Cadastro | Vazão variável no tempo (janela de ≈ 14 s com o dobro da vazão do resto do teste) | Aberta |
+| C1 | Cadastro | Custo da escrita durável (commit no InnoDB): ≈ 8 ms por requisição com 1 VU | Continua sendo o limite |
+| C2 | Cadastro | Manutenção de 3 índices e crescimento da tabela | Atenuada |
+| C3 | Cadastro | Paradas curtas de 3–4 s | **Não resolvida; piorou** (3,1 s e 4,7 s) |
+| C4 | Cadastro | Fila no pool, com duas consultas por requisição | Atendida em parte (1 consulta a menos) |
 
 ---
 
@@ -182,7 +179,7 @@ Execute a partir da pasta `testes-de-carga/` e crie antes a pasta do dia (por ex
 cd testes-de-carga
 
 # Login
-k6 run -e LOGIN_EMAIL=karenzinha123@email.com -e LOGIN_SENHA=senha123 --summary-export=resultados/2026-11-15/login-resumo.json --out json=resultados/2026-11-15/login.json login.js
+k6 run -e LOGIN_EMAIL=karenzinha@email.com -e LOGIN_SENHA=senha123 --summary-export=resultados/2026-11-15/login-resumo.json --out json=resultados/2026-11-15/login.json login.js
 
 # Cadastro
 k6 run --summary-export=resultados/2026-11-15/cadastro-resumo.json --out json=resultados/2026-11-15/cadastro.json cadastro.js
