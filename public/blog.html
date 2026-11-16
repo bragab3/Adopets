@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blog PetSocial</title>
+  <link rel="stylesheet" href="css/home.css" />
+  <style>
+    body {
+      background-color: #f4f6f8;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+    }
+    .feed-container {
+      max-width: 700px;
+      margin: 30px auto 80px auto;
+      padding: 0 15px;
+    }
+    .post-card {
+      background-color: #ffffff;
+      border-radius: 16px;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+      border-left: 5px solid #0077cc;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .post-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    }
+    .post-fixed {
+      border-left-color: #ffd700;
+      background-color: #fffbe6;
+    }
+    .post-header {
+      display: flex;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid #eee;
+    }
+    .post-header img {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      margin-right: 12px;
+      object-fit: cover;
+    }
+    .user-info h4 {
+      margin: 0;
+      font-size: 16px;
+      color: #222;
+    }
+    .user-info span {
+      font-size: 12px;
+      color: #888;
+    }
+    .post-image img {
+      width: 100%;
+      max-height: 420px;
+      object-fit: cover;
+      display: block;
+    }
+    .post-content {
+      padding: 18px 20px;
+      color: #324a7a;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    .post-actions {
+      display: flex;
+      justify-content: space-around;
+      padding: 14px 0;
+      border-top: 1px solid #eee;
+      color: #777;
+      font-size: 14px;
+      cursor: pointer;
+      background-color: #fafafa;
+      position: relative;
+      user-select: none;
+    }
+    .post-actions div:hover {
+      color: #0077cc;
+    }
+    .comentarios {
+      padding: 12px 20px;
+      background: #f9f9f9;
+      border-top: 1px solid #ddd;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .comentario {
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: #444;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .comentario img {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .tags-container {
+      max-width: 700px;
+      margin: 10px auto 0 auto;
+      text-align: center;
+    }
+    .tag-btn {
+      display: inline-block;
+      background: #0077cc;
+      color: white;
+      padding: 10px 18px;
+      margin: 6px 6px 6px 0;
+      border-radius: 25px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+    }
+    .tag-btn:hover, .tag-btn.active {
+      background: #005fa3;
+    }
+    .tags {
+      padding: 0 20px 12px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .tags .tag {
+      background: #0077cc;
+      color: white;
+      padding: 5px 12px;
+      border-radius: 16px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    #btnNovoPost {
+      position: fixed;
+      bottom: 25px;
+      right: 25px;
+      background: #0077cc;
+      border: none;
+      color: white;
+      width: 58px;
+      height: 58px;
+      font-size: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      z-index: 1100;
+    }
+    .overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 999;
+      display: none;
+    }
+    .popup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #fff;
+      border-radius: 16px;
+      padding: 25px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.25);
+      width: 380px;
+      max-width: 90vw;
+      z-index: 1000;
+      display: none;
+    }
+    .popup label {
+      display: block;
+      margin-top: 12px;
+      font-weight: 600;
+      color: #333;
+    }
+    .popup textarea, .popup input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      margin-top: 6px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-family: inherit;
+    }
+    .checkbox-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .popup-buttons {
+      margin-top: 18px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .btn-primario {
+      background: #0077cc;
+      color: #fff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .btn-secundario {
+      background: #ddd;
+      color: #333;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<header class="cabecalho">
+  <div class="container-cabecalho">
+    <div class="logo">
+      <img class="img-cabecalho" src="Images/Adopt 500x500.png" alt="Logo AdoPetz">
+      <h2 class="texto-logo">AdoPetz</h2>
+    </div>
+
+    <nav class="menu-nav">
+      <ul class="lista-menu-nav">
+        <li class="item-menu-nav"><a href="homelogada.html">Início</a></li>
+        <li class="item-menu-nav"><a href="catalogo.html">Adote</a></li>
+        <li class="item-menu-nav dropdown">
+          <a href="#" class="dropbtn">Recursos</a>
+          <ul class="dropdown-content">
+            <li><a href="calendario.html">Calendário</a></li>
+            <li><a href="blog.html">Blog</a></li>
+            <li><a href="denuncia.html">Denuncie</a></li>
+          </ul>
+        </li>
+        <li class="item-menu-nav dropdown">
+          <a href="#" class="dropbtn">Parceiro</a>
+          <ul class="dropdown-content">
+            <li><a href="itens.html">Loja</a></li>
+            <li><a href="mapa.html">Mapa</a></li>
+          </ul>
+        </li>
+        <li class="item-menu-nav dropdown">
+          <a href="#" class="dropbtn">Institucional</a>
+          <ul class="dropdown-content">
+            <li><a href="sobre-nos.html">Sobre Nós</a></li>
+            <li><a href="contribua.html">Contribua Conosco</a></li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="perfil-usuario" id="perfil-usuario">
+      <img class="foto-usuario" src="Images/cliente.png" alt="Foto do Usuário">
+      <span class="nome-usuario">Usuário</span>
+    </div>
+
+    <div class="mini-navbar" id="mini-navbar" style="display: none;">
+      <ul>
+        <li><a href="perfil.html">Exibir Perfil</a></li>
+        <li><a href="meus_anuncios.html">Meus Anuncios</a></li>
+        <li><a href="chats.html">Meus Chats</a></li>
+        <li><a href="home.html">Sair</a></li>
+      </ul>
+    </div>
+  </div>
+</header>
+
+<h1 style="text-align: center; margin-top: 20px; color: #0078d7;">Blog PetSocial</h1>
+
+<div id="filter-container" class="tags-container">
+  <h3>Filtre pelas nossas Tags</h3>
+  <button class="tag-btn active" data-tag="">Todas</button>
+  <button class="tag-btn" data-tag="#cachorro">#cachorro</button>
+  <button class="tag-btn" data-tag="#gato">#gato</button>
+  <button class="tag-btn" data-tag="#passeio">#passeio</button>
+</div>
+
+<button id="btnNovoPost" title="Criar novo post">+</button>
+
+<div class="feed-container" id="feed-container"></div>
+
+<!-- Popup Comentário -->
+<div id="popup-comentario" class="popup">
+  <h3>Adicionar Comentário</h3>
+  <textarea id="input-comentario" rows="4" placeholder="Escreva seu comentário..."></textarea>
+  <div class="popup-buttons">
+    <button class="btn-primario" id="btn-enviar-comentario">Enviar</button>
+    <button class="btn-secundario" onclick="fecharPopups()">Cancelar</button>
+  </div>
+</div>
+
+<!-- Popup Novo/Editar Post -->
+<div id="popup-novo-post" class="popup">
+  <h3 id="titulo-modal-post">Novo Post</h3>
+  <label for="novo-post-texto">Texto:</label>
+  <textarea id="novo-post-texto" rows="3" placeholder="Compartilhe algo com a comunidade..."></textarea>
+
+  <label for="novo-post-img">URL da imagem (opcional):</label>
+  <input type="text" id="novo-post-img" placeholder="Ex: Images/cachorro1.png ou https://...">
+
+  <label>Tags:</label>
+  <div id="checkbox-tags" class="checkbox-group">
+    <label><input type="checkbox" value="#cachorro"> #cachorro</label>
+    <label><input type="checkbox" value="#gato"> #gato</label>
+    <label><input type="checkbox" value="#passeio"> #passeio</label>
+  </div>
+
+  <div class="popup-buttons">
+    <button class="btn-primario" onclick="salvarPost()">Publicar</button>
+    <button class="btn-secundario" onclick="fecharPopups()">Cancelar</button>
+  </div>
+</div>
+
+<div id="popup-overlay" class="overlay" onclick="fecharPopups()"></div>
+
+<script>
+  const feed = document.getElementById('feed-container');
+  let listaPosts = [];
+  let tagFiltroAtual = '';
+  let postIdParaComentar = null;
+  let postEmEdicao = null;
+
+  function obterHeaders() {
+    const u = JSON.parse(localStorage.getItem('usuarioLogado') || 'null');
+    const h = { 'Content-Type': 'application/json' };
+    if (u && u.id) h['x-usuario-id'] = String(u.id);
+    return h;
+  }
+
+  async function carregarFeed() {
+    try {
+      const res = await fetch('/api/postagens', {
+        credentials: 'same-origin',
+        headers: obterHeaders()
+      });
+      listaPosts = await res.json();
+      renderizarFeed();
+    } catch (err) {
+      console.error('Erro ao carregar blog:', err);
+    }
+  }
+
+  function renderizarFeed() {
+    feed.innerHTML = '';
+    const filtrados = listaPosts.filter(p => {
+      if (!tagFiltroAtual) return true;
+      return (p.tags || '').includes(tagFiltroAtual);
+    });
+
+    if (filtrados.length === 0) {
+      feed.innerHTML = '<p style="text-align:center; color:#666;">Nenhuma publicação encontrada.</p>';
+      return;
+    }
+
+    filtrados.forEach(post => {
+      const card = document.createElement('div');
+      card.className = `post-card ${post.fixado ? 'post-fixed' : ''}`;
+      const tagsArray = (post.tags || '').split(' ').filter(Boolean);
+      const dataFormatada = post.data_hora ? new Date(post.data_hora).toLocaleString('pt-BR') : 'Agora';
+
+      card.innerHTML = `
+        <div class="post-header">
+          <img src="${post.autor_foto || 'Images/cliente.png'}" alt="${post.autor_nome}">
+          <div class="user-info">
+            <h4>
+              ${post.autor_nome}
+              ${post.fixado ? '<span style="background:#ffcc00; color:#333; padding:2px 6px; border-radius:5px; font-size:10px;">FIXADO</span>' : ''}
+            </h4>
+            <span>${dataFormatada}</span>
+          </div>
+        </div>
+        ${post.imagem_url ? `
+          <div class="post-image">
+            <img src="${post.imagem_url}" alt="Imagem do Post" onerror="this.style.display='none'">
+          </div>
+        ` : ''}
+        <div class="post-content">
+          <p>${post.texto}</p>
+        </div>
+        <div class="tags">
+          ${tagsArray.map(t => `<span class="tag" onclick="filtrarPorTag('${t}')">${t}</span>`).join('')}
+        </div>
+        <div class="post-actions">
+          <div class="btn-curtir" style="color: ${post.curtido_por_mim ? '#0077cc' : '#777'}; font-weight: ${post.curtido_por_mim ? 'bold' : 'normal'};">
+            👍 ${post.curtido_por_mim ? 'Curtido' : 'Curtir'} (${post.num_curtidas || 0})
+          </div>
+          <div class="btn-comentar">
+            💬 Comentar (${(post.comentarios || []).length})
+          </div>
+          ${post.sou_autor ? `
+            <div class="btn-editar" style="color:#0077cc;">✏️ Editar</div>
+            <div class="btn-excluir" style="color:#cc0000;">🗑️ Excluir</div>
+          ` : ''}
+        </div>
+        <div class="comentarios">
+          ${(post.comentarios || []).length === 0
+            ? '<small style="color:#999;">Seja o primeiro a comentar!</small>'
+            : (post.comentarios || []).map(c => `
+                <div class="comentario">
+                  <img src="${c.autor_foto || 'Images/cliente.png'}" alt="${c.autor_nome}">
+                  <div><strong>${c.autor_nome}:</strong> <span>${c.texto}</span></div>
+                </div>
+              `).join('')
+          }
+        </div>
+      `;
+
+      // Evento Curtir
+      card.querySelector('.btn-curtir').addEventListener('click', async () => {
+        const r = await fetch(`/api/postagens/${post.id}/curtir`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: obterHeaders()
+        });
+        if (r.status === 401) return alert('Faça login para curtir!');
+        await carregarFeed();
+      });
+
+      // Evento Comentar
+      card.querySelector('.btn-comentar').addEventListener('click', () => {
+        postIdParaComentar = post.id;
+        document.getElementById('input-comentario').value = '';
+        document.getElementById('popup-comentario').style.display = 'block';
+        document.getElementById('popup-overlay').style.display = 'block';
+        document.getElementById('input-comentario').focus();
+      });
+
+      // Eventos Editar e Excluir (somente para o dono do post)
+      if (post.sou_autor) {
+        card.querySelector('.btn-editar').addEventListener('click', () => abrirEdicao(post));
+        card.querySelector('.btn-excluir').addEventListener('click', async () => {
+          if (confirm('Deseja realmente excluir sua publicação?')) {
+            await fetch(`/api/postagens/${post.id}`, {
+              method: 'DELETE',
+              credentials: 'same-origin',
+              headers: obterHeaders()
+            });
+            await carregarFeed();
+          }
+        });
+      }
+
+      feed.appendChild(card);
+    });
+  }
+
+  function filtrarPorTag(tag) {
+    tagFiltroAtual = tag;
+    document.querySelectorAll('.tag-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-tag') === tag);
+    });
+    renderizarFeed();
+  }
+
+  document.querySelectorAll('.tag-btn').forEach(btn => {
+    btn.addEventListener('click', () => filtrarPorTag(btn.getAttribute('data-tag')));
+  });
+
+  // Enviar comentário para o MySQL
+  document.getElementById('btn-enviar-comentario').addEventListener('click', async () => {
+    const texto = document.getElementById('input-comentario').value.trim();
+    if (!texto || !postIdParaComentar) return alert('Digite um comentário.');
+
+    const res = await fetch(`/api/postagens/${postIdParaComentar}/comentarios`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: obterHeaders(),
+      body: JSON.stringify({ texto })
+    });
+
+    if (res.status === 401) {
+      alert('Faça login para comentar!');
+      window.location.href = 'login.html';
+      return;
+    }
+
+    fecharPopups();
+    await carregarFeed();
+  });
+
+  // Abrir modal de novo post
+  document.getElementById('btnNovoPost').addEventListener('click', () => {
+    postEmEdicao = null;
+    document.getElementById('titulo-modal-post').textContent = 'Novo Post';
+    document.getElementById('novo-post-texto').value = '';
+    document.getElementById('novo-post-img').value = '';
+    document.querySelectorAll('#checkbox-tags input').forEach(cb => cb.checked = false);
+    document.getElementById('popup-novo-post').style.display = 'block';
+    document.getElementById('popup-overlay').style.display = 'block';
+  });
+
+  function abrirEdicao(post) {
+    postEmEdicao = post;
+    document.getElementById('titulo-modal-post').textContent = 'Editar Post';
+    document.getElementById('novo-post-texto').value = post.texto;
+    document.getElementById('novo-post-img').value = post.imagem_url || '';
+    const tagsAtuais = (post.tags || '').split(' ');
+    document.querySelectorAll('#checkbox-tags input').forEach(cb => {
+      cb.checked = tagsAtuais.includes(cb.value);
+    });
+    document.getElementById('popup-novo-post').style.display = 'block';
+    document.getElementById('popup-overlay').style.display = 'block';
+  }
+
+  async function salvarPost() {
+    const texto = document.getElementById('novo-post-texto').value.trim();
+    const imagem_url = document.getElementById('novo-post-img').value.trim();
+    const tags = Array.from(document.querySelectorAll('#checkbox-tags input:checked')).map(c => c.value);
+
+    if (!texto) return alert('O texto da publicação é obrigatório.');
+
+    const url = postEmEdicao ? `/api/postagens/${postEmEdicao.id}` : '/api/postagens';
+    const metodo = postEmEdicao ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method: metodo,
+      credentials: 'same-origin',
+      headers: obterHeaders(),
+      body: JSON.stringify({ texto, imagem_url, tags })
+    });
+
+    if (res.status === 401) {
+      alert('Faça login para publicar!');
+      window.location.href = 'login.html';
+      return;
+    }
+
+    fecharPopups();
+    await carregarFeed();
+  }
+
+  function fecharPopups() {
+    document.getElementById('popup-comentario').style.display = 'none';
+    document.getElementById('popup-novo-post').style.display = 'none';
+    document.getElementById('popup-overlay').style.display = 'none';
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    carregarFeed();
+
+    const perfilUsuario = document.getElementById("perfil-usuario");
+    const miniNavbar = document.getElementById("mini-navbar");
+    perfilUsuario.addEventListener("click", (e) => {
+      e.stopPropagation();
+      miniNavbar.style.display = (miniNavbar.style.display === "block") ? "none" : "block";
+    });
+    document.addEventListener("click", (e) => {
+      if (!miniNavbar.contains(e.target) && !perfilUsuario.contains(e.target)) {
+        miniNavbar.style.display = "none";
+      }
+    });
+  });
+</script>
+</body>
+</html>

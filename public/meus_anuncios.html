@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="shortcut icon" href="Images/Adopt 500x500.png" type="image/x-icon" />
+  <link rel="stylesheet" href="css/home.css">
+  <title>Meus Anúncios</title>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      font-size: 18px;
+      color: #ffffff;
+      background-color: #1e3a5f;
+      align-items: center;
+    }
+    .topo-meus-anuncios {
+      max-width: 900px;
+      margin: 25px auto 5px auto;
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .btn-novo-anuncio {
+      padding: 10px 20px;
+      background-color: #1e90ff;
+      color: white;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: bold;
+      font-size: 16px;
+      transition: background 0.3s;
+    }
+    .btn-novo-anuncio:hover {
+      background-color: #156ecf;
+    }
+    .catalogo {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      padding: 20px;
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .card {
+      position: relative;
+      background-color: #324a7a;
+      color: #dbe3f0;
+      display: flex;
+      align-items: center;
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+    }
+    .card img.animal-img {
+      width: 90px;
+      height: 90px;
+      border-radius: 8px;
+      margin-right: 20px;
+      object-fit: cover;
+    }
+    .actions {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .actions button {
+      background-color: rgba(255, 255, 255, 0.2);
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      padding: 8px;
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
+      color: white;
+      transition: background-color 0.3s, transform 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .actions button:hover {
+      background-color: rgba(255, 255, 255, 0.4);
+      transform: scale(1.1);
+    }
+  </style>
+</head>
+<body>
+  <header class="cabecalho">
+    <div class="container-cabecalho">
+      <div class="logo">
+        <img class="img-cabecalho" src="Images/Adopt 500x500.png" alt="Logo AdoPetz">
+        <h2 class="texto-logo">AdoPetz</h2>
+      </div>
+
+      <nav class="menu-nav">
+        <ul class="lista-menu-nav">
+          <li class="item-menu-nav"><a href="homelogada.html">Início</a></li>
+          <li class="item-menu-nav"><a href="catalogo.html">Adote</a></li>
+          <li class="item-menu-nav dropdown">
+            <a href="#" class="dropbtn">Recursos</a>
+            <ul class="dropdown-content">
+              <li><a href="calendario.html">Calendário</a></li>
+              <li><a href="blog.html">Blog</a></li>
+              <li><a href="denuncia.html">Denuncie</a></li>
+            </ul>
+          </li>
+          <li class="item-menu-nav dropdown">
+            <a href="#" class="dropbtn">Parceiro</a>
+            <ul class="dropdown-content">
+              <li><a href="itens.html">Loja</a></li>
+              <li><a href="mapa.html">Mapa</a></li>
+            </ul>
+          </li>
+          <li class="item-menu-nav dropdown">
+            <a href="#" class="dropbtn">Institucional</a>
+            <ul class="dropdown-content">
+              <li><a href="sobre-nos.html">Sobre Nós</a></li>
+              <li><a href="contribua.html">Contribua Conosco</a></li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="perfil-usuario" id="perfil-usuario">
+        <img class="foto-usuario" src="Images/cliente.png" alt="Foto do Usuário">
+        <span class="nome-usuario">Usuário</span>
+      </div>
+
+      <div class="mini-navbar" id="mini-navbar" style="display: none;">
+        <ul>
+          <li><a href="perfil.html">Exibir Perfil</a></li>
+          <li><a href="meus_anuncios.html">Meus Anuncios</a></li>
+          <li><a href="chats.html">Meus Chats</a></li>
+          <li><a href="home.html" onclick="localStorage.removeItem('usuarioLogado')">Sair</a></li>
+        </ul>
+      </div>
+    </div>
+  </header>
+
+  <div class="topo-meus-anuncios">
+    <h2 style="color: #dbe3f0; margin: 0;">Meus Anúncios</h2>
+    <a href="upload.html" class="btn-novo-anuncio">+ Novo Anúncio</a>
+  </div>
+
+  <div class="catalogo" id="catalogo"></div>
+
+  <div id="mensagem-vazia" style="display:none; text-align:center; margin-top: 50px;">
+    <p style="color:#dbe3f0; font-size: 18px;">Você ainda não tem anúncios cadastrados nesta conta.</p>
+    <a href="upload.html" class="btn-novo-anuncio" style="display: inline-block; margin-top: 15px;">
+      Cadastrar Meu Primeiro Animal
+    </a>
+  </div>
+
+  <script>
+    let meusAnunciosBanco = [];
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuarioLogado") || "null");
+
+    function headersAutenticados() {
+      const h = {};
+      if (usuarioLocal && usuarioLocal.id) {
+        h['x-usuario-id'] = String(usuarioLocal.id);
+      }
+      return h;
+    }
+
+    async function carregarAnunciosDoBanco() {
+      if (usuarioLocal) {
+        document.querySelectorAll('.nome-usuario').forEach(el => el.textContent = usuarioLocal.nome);
+        document.querySelectorAll('.foto-usuario').forEach(el => el.src = usuarioLocal.foto || 'Images/cliente.png');
+      }
+
+      try {
+        const res = await fetch('/api/meus_anuncios', {
+          credentials: 'same-origin',
+          headers: headersAutenticados()
+        });
+
+        if (res.status === 401) {
+          window.location.href = 'login.html';
+          return;
+        }
+
+        if (!res.ok) throw new Error('Falha ao buscar anúncios');
+        meusAnunciosBanco = await res.json();
+        renderizarAnuncios();
+      } catch (err) {
+        console.error('Erro ao carregar anúncios:', err);
+        renderizarAnuncios();
+      }
+    }
+
+    function renderizarAnuncios() {
+      const catalogo = document.getElementById("catalogo");
+      catalogo.innerHTML = "";
+      const mensagemVazia = document.getElementById("mensagem-vazia");
+
+      if (!Array.isArray(meusAnunciosBanco) || meusAnunciosBanco.length === 0) {
+        mensagemVazia.style.display = "block";
+        return;
+      } else {
+        mensagemVazia.style.display = "none";
+      }
+
+      meusAnunciosBanco.forEach(anuncio => {
+        const card = document.createElement("div");
+        card.classList.add("card");
+
+        card.innerHTML = `
+          <img src="${anuncio.imagem || anuncio.imagem_url || 'Images/cachorro1.png'}" alt="${anuncio.nome}" class="animal-img" />
+          <div>
+            <h2 style="color:#1e90ff; margin-bottom:6px;">${anuncio.nome}</h2>
+            <p>Raça: ${anuncio.raca}</p>
+            <p>Idade: ${anuncio.idade} ano(s)</p>
+            <p>Coloração: ${anuncio.coloracao}</p>
+            <p>Vacinado: ${anuncio.vacinado}</p>
+            <p>Data Nascimento: ${anuncio.data_nascimento}</p>
+          </div>
+          <div class="actions">
+            <button title="Editar" class="btn-editar">✏️</button>
+            <button title="Excluir" class="btn-excluir">🗑️</button>
+          </div>
+        `;
+
+        card.querySelector('.btn-editar').addEventListener('click', (e) => {
+          e.stopPropagation();
+          localStorage.setItem("animalSelecionado", JSON.stringify(anuncio));
+          window.location.href = `editar_animal.html?id=${anuncio.id}`;
+        });
+
+        card.querySelector('.btn-excluir').addEventListener('click', (e) => {
+          e.stopPropagation();
+          excluirAnuncio(anuncio.id);
+        });
+
+        catalogo.appendChild(card);
+      });
+    }
+
+    async function excluirAnuncio(id) {
+      if (confirm("Tem certeza que deseja excluir este anúncio?")) {
+        const res = await fetch(`/api/meus_anuncios/${id}`, {
+          method: 'DELETE',
+          credentials: 'same-origin',
+          headers: headersAutenticados()
+        });
+        if (res.ok) {
+          await carregarAnunciosDoBanco();
+        } else {
+          const erro = await res.json();
+          alert(erro.error || "Erro ao excluir anúncio.");
+        }
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      carregarAnunciosDoBanco();
+
+      const perfilUsuario = document.getElementById("perfil-usuario");
+      const miniNavbar = document.getElementById("mini-navbar");
+
+      perfilUsuario.addEventListener("click", (e) => {
+        e.stopPropagation();
+        miniNavbar.style.display = (miniNavbar.style.display === "block") ? "none" : "block";
+      });
+
+      document.addEventListener("click", (e) => {
+        if (!miniNavbar.contains(e.target) && e.target !== perfilUsuario && !perfilUsuario.contains(e.target)) {
+          miniNavbar.style.display = "none";
+        }
+      });
+    });
+  </script>
+</body>
+</html>

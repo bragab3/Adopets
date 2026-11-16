@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="Images/Adopt 500x500.png" type="image/x-icon">
+    <title>Editar Anúncio - AdoPetz</title>
+    <link rel="stylesheet" href="css/editar_animal.css">
+</head>
+<body>
+    <a href="meus_anuncios.html" class="logout-button">
+        <img src="images/sair.png" alt="Voltar" class="logout-icon" />
+    </a>
+
+    <div class="header">
+        <a href="meus_anuncios.html">
+            <img src="Images/Adopt 500x500.png" alt="Logo Adopetz" class="logo">
+        </a>
+    </div>
+
+    <div class="edit-container">
+        <h1>Editar Anúncio</h1>
+        <form id="edit-form" enctype="multipart/form-data">
+            <label for="anuncio_nome">Nome do Anúncio / Animal:</label>
+            <input type="text" id="anuncio_nome" name="anuncio_nome" required>
+
+            <label for="descricao">Descrição:</label>
+            <textarea id="descricao" name="descricao" rows="4" required></textarea>
+
+            <label for="raca">Raça:</label>
+            <input type="text" id="raca" name="raca" required>
+
+            <label for="data_nascimento">Data de Nascimento:</label>
+            <input type="date" id="data_nascimento" name="data_nascimento" required>
+
+            <label for="coloracao">Coloração:</label>
+            <input type="text" id="coloracao" name="coloracao" required>
+
+            <label for="vacinado">Vacinado:</label>
+            <select id="vacinado" name="vacinado" required>
+                <option value="Sim">Sim</option>
+                <option value="Não">Não</option>
+            </select>
+
+            <label for="idade">Idade (anos):</label>
+            <input type="number" id="idade" name="idade" min="0" required>
+
+            <label for="imagem">Alterar Imagem (opcional):</label>
+            <input type="file" id="imagem" name="imagem" accept="image/*">
+
+            <div class="image-preview">
+                <div>
+                    <p style="text-align:center; margin: 0 0 5px 0; font-size: 12px; color: #dbe3f0;">Imagem Atual</p>
+                    <img id="current-image" src="Images/cachorro1.png" alt="Imagem Atual">
+                </div>
+                <div id="box-new-image" style="display: none;">
+                    <p style="text-align:center; margin: 0 0 5px 0; font-size: 12px; color: #1e90ff;">Nova Imagem</p>
+                    <img id="new-image-preview" src="" alt="Nova Imagem">
+                </div>
+            </div>
+
+            <button type="button" id="undo-button" style="display: none;">Desfazer Alteração de Imagem</button>
+            <button type="submit">Salvar Alterações</button>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", async () => {
+            const form = document.getElementById("edit-form");
+            const currentImage = document.getElementById("current-image");
+            const newImagePreview = document.getElementById("new-image-preview");
+            const boxNewImage = document.getElementById("box-new-image");
+            const imagemInput = document.getElementById("imagem");
+            const undoButton = document.getElementById("undo-button");
+
+            const usuarioLocal = JSON.parse(localStorage.getItem("usuarioLogado") || "null");
+            const animalStorage = JSON.parse(localStorage.getItem("animalSelecionado") || "null");
+            const urlId = new URLSearchParams(window.location.search).get("id");
+            const animalId = urlId || (animalStorage ? animalStorage.id : null);
+
+            if (!animalId) {
+                alert("ID do anúncio não encontrado.");
+                window.location.href = "meus_anuncios.html";
+                return;
+            }
+
+            function obterHeaders() {
+                const h = {};
+                if (usuarioLocal && usuarioLocal.id) {
+                    h["x-usuario-id"] = String(usuarioLocal.id);
+                }
+                return h;
+            }
+
+            // 1. Busca os dados atuais do anúncio direto do MySQL
+            try {
+                const res = await fetch(`/api/meus_anuncios/${animalId}`, {
+                    credentials: "same-origin",
+                    headers: obterHeaders()
+                });
+
+                if (res.status === 401) {
+                    window.location.href = "login.html";
+                    return;
+                }
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || "Erro ao carregar os dados do anúncio.");
+                }
+
+                const anuncio = await res.json();
+
+                document.getElementById("anuncio_nome").value = anuncio.anuncio_nome || anuncio.nome || "";
+                document.getElementById("descricao").value = anuncio.descricao || "";
+                document.getElementById("raca").value = anuncio.raca || "";
+
+                if (anuncio.data_nascimento) {
+                    const dataFormatada = new Date(anuncio.data_nascimento).toISOString().split("T")[0];
+                    document.getElementById("data_nascimento").value = dataFormatada;
+                }
+
+                document.getElementById("coloracao").value = anuncio.coloracao || "";
+                document.getElementById("vacinado").value = anuncio.vacinado || "Não";
+                document.getElementById("idade").value = anuncio.idade !== undefined ? anuncio.idade : 0;
+                currentImage.src = anuncio.imagem || anuncio.imagem_url || "Images/cachorro1.png";
+            } catch (error) {
+                alert(error.message);
+                window.location.href = "meus_anuncios.html";
+                return;
+            }
+// Atualiza o campo de idade automaticamente se o usuário mudar a data de nascimento na edição
+            document.getElementById("data_nascimento").addEventListener("change", (e) => {
+                const hoje = new Date();
+                const nasc = new Date(e.target.value);
+                let idadeCalc = hoje.getFullYear() - nasc.getFullYear();
+                const m = hoje.getMonth() - nasc.getMonth();
+                if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) idadeCalc--;
+                document.getElementById("idade").value = Math.max(0, idadeCalc);
+            });
+            // 2. Pré-visualização ao escolher uma nova foto
+            imagemInput.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        newImagePreview.src = ev.target.result;
+                        boxNewImage.style.display = "block";
+                        undoButton.style.display = "block";
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    newImagePreview.src = "";
+                    boxNewImage.style.display = "none";
+                    undoButton.style.display = "none";
+                }
+            });
+
+            undoButton.addEventListener("click", () => {
+                imagemInput.value = "";
+                newImagePreview.src = "";
+                boxNewImage.style.display = "none";
+                undoButton.style.display = "none";
+            });
+
+            // 3. Envia as alterações para o MySQL via PUT /api/meus_anuncios/:id
+            form.addEventListener("submit", async (e) => {
+                e.preventDefault();
+
+                const formData = new FormData();
+                formData.append("anuncio_nome", document.getElementById("anuncio_nome").value.trim());
+                formData.append("descricao", document.getElementById("descricao").value.trim());
+                formData.append("raca", document.getElementById("raca").value.trim());
+                formData.append("data_nascimento", document.getElementById("data_nascimento").value);
+                formData.append("coloracao", document.getElementById("coloracao").value.trim());
+                formData.append("vacinado", document.getElementById("vacinado").value);
+                formData.append("idade", document.getElementById("idade").value);
+
+                if (imagemInput.files[0]) {
+                    formData.append("imagem", imagemInput.files[0]);
+                }
+
+                try {
+                    const res = await fetch(`/api/meus_anuncios/${animalId}`, {
+                        method: "PUT",
+                        credentials: "same-origin",
+                        headers: obterHeaders(),
+                        body: formData
+                    });
+
+                    const data = await res.json();
+                    if (!res.ok) {
+                        throw new Error(data.error || "Erro ao salvar alterações.");
+                    }
+
+                    alert("Anúncio atualizado com sucesso no banco de dados!");
+                    window.location.href = "meus_anuncios.html";
+                } catch (error) {
+                    alert(error.message);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
