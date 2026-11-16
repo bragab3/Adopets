@@ -93,7 +93,7 @@ Definido em [`login.js`](testes-de-carga/login.js) e [`cadastro.js`](testes-de-c
 
 **Cenário de concorrência submetido ao longo do tempo** (o mesmo nos dois serviços e nas duas medições). Sobre cada patamar estão os resultados medidos, no formato *Medição 1 → Medição 2*:
 
-![Cenário de concorrência submetido ao longo do tempo, com os resultados de cada patamar nas duas medições](testes-de-carga/graficos/comparativo_2026-11-09_vs_2026-11-15/comparativo_concorrencia_cenario.png)
+![Cenário de concorrência submetido ao longo do tempo, com os resultados de cada patamar nas duas medições](testes-de-carga/graficos/comparativo_2026-11-09_vs_2026-11-15/comparativo_concorrencia_cenarioa.png)
 
 - **Sem tempo de espera** (`THINK_TIME=0`): cada VU dispara a próxima requisição assim que recebe a resposta. Isso mede a capacidade máxima do serviço, não o uso de pessoas reais.
 - **Limites (thresholds) usados como SLA de exemplo:** `http_req_failed < 1 %` e `http_req_duration p(95) < 1000 ms`.
